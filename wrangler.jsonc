@@ -1,0 +1,10 @@
+{
+  // Site statique : Vite construit dist/, Cloudflare sert ces fichiers (adresse : <name>.<ton-sous-domaine>.workers.dev).
+  "name": "stage-tracker-web",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    // Toute adresse inconnue renvoie index.html : le routeur React gère /calendrier, /candidatures/12…
+    "not_found_handling": "single-page-application"
+  }
+}

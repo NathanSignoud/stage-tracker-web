@@ -1,0 +1,217 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-viz-1: var(--viz-1);
+  --color-viz-2: var(--viz-2);
+  --color-viz-3: var(--viz-3);
+  --color-viz-muted: var(--viz-muted);
+  --color-viz-grid: var(--viz-grid);
+  --color-viz-seq-1: var(--viz-seq-1);
+  --color-viz-seq-2: var(--viz-seq-2);
+  --color-viz-seq-3: var(--viz-seq-3);
+  --color-viz-seq-4: var(--viz-seq-4);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Polices embarquées (@fontsource, importées dans main.tsx) : aucun appel à un domaine externe. */
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-heading: "Unbounded Variable", "Onest Variable", ui-sans-serif, sans-serif;
+  /* Atelier : une teinte par sujet (fond de bloc) + son encre pour le texte posé dessus. */
+  --color-tile-interview: var(--tile-interview);
+  --color-tile-interview-ink: var(--tile-interview-ink);
+  --color-tile-task: var(--tile-task);
+  --color-tile-task-ink: var(--tile-task-ink);
+  --color-tile-send: var(--tile-send);
+  --color-tile-send-ink: var(--tile-send-ink);
+  --color-tile-stale: var(--tile-stale);
+  --color-tile-stale-ink: var(--tile-stale-ink);
+  --color-tile-stat: var(--tile-stat);
+  --color-tile-stat-ink: var(--tile-stat-ink);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Data-viz (palette de référence validée : bleu, orange, aqua ; rampe séquentielle bleue). */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-muted: #c3c2b7;
+  --viz-grid: #e1e0d9;
+  --viz-seq-1: #cde2fb;
+  --viz-seq-2: #86b6ef;
+  --viz-seq-3: #2a78d6;
+  --viz-seq-4: #184f95;
+  --background: #f6f6fa;
+  --foreground: #1e1b2e;
+  --card: #ffffff;
+  --card-foreground: #1e1b2e;
+  --popover: #ffffff;
+  --popover-foreground: #1e1b2e;
+  --primary: #1e1b2e;
+  --primary-foreground: #ffffff;
+  --secondary: #eeedf4;
+  --secondary-foreground: #1e1b2e;
+  --muted: #eeedf4;
+  --muted-foreground: #5f5a73;
+  --accent: #eeedf4;
+  --accent-foreground: #1e1b2e;
+  --destructive: #d92d20;
+  --border: #e6e4ee;
+  --input: #dcd9e6;
+  --ring: #8a63e8;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.875rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1e1b2e;
+  --sidebar-primary: #1e1b2e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eeedf4;
+  --sidebar-accent-foreground: #1e1b2e;
+  --sidebar-border: #e6e4ee;
+  --sidebar-ring: #8a63e8;
+  --tile-interview: #e4dbff;
+  --tile-interview-ink: #4b3a8f;
+  --tile-task: #fff0b3;
+  --tile-task-ink: #5c4a00;
+  --tile-send: #cff3df;
+  --tile-send-ink: #1d5b3c;
+  --tile-stale: #ffdccb;
+  --tile-stale-ink: #7a2e10;
+  --tile-stat: #d9ebff;
+  --tile-stat-ink: #1e3a6b;
+}
+
+.dark {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-muted: #4a4a46;
+  --viz-grid: #2c2c2a;
+  /* En sombre, « peu » se rapproche de la surface et « beaucoup » s'éclaircit. */
+  --viz-seq-1: #13345e;
+  --viz-seq-2: #1c5cab;
+  --viz-seq-3: #3987e5;
+  --viz-seq-4: #9ec5f4;
+  --background: #121019;
+  --foreground: #f1eff7;
+  --card: #1b1826;
+  --card-foreground: #f1eff7;
+  --popover: #211d2e;
+  --popover-foreground: #f1eff7;
+  --primary: #f1eff7;
+  --primary-foreground: #1b1826;
+  --secondary: #26222f;
+  --secondary-foreground: #f1eff7;
+  --muted: #26222f;
+  --muted-foreground: #a7a2b8;
+  --accent: #2c2838;
+  --accent-foreground: #f1eff7;
+  --destructive: #f97066;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 14%);
+  --ring: #a38bf0;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: #1b1826;
+  --sidebar-foreground: #f1eff7;
+  --sidebar-primary: #f1eff7;
+  --sidebar-primary-foreground: #1b1826;
+  --sidebar-accent: #26222f;
+  --sidebar-accent-foreground: #f1eff7;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #a38bf0;
+  /* En sombre, les pastels deviennent des teintes profondes ; l'encre s'éclaircit. */
+  --tile-interview: #2a2350;
+  --tile-interview-ink: #cbbfff;
+  --tile-task: #352d10;
+  --tile-task-ink: #f2d879;
+  --tile-send: #14382a;
+  --tile-send-ink: #93e0b8;
+  --tile-stale: #43251a;
+  --tile-stale-ink: #ffb898;
+  --tile-stat: #16294a;
+  --tile-stat-ink: #a6c8f5;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer base {
+  /* Contour clavier pour les liens et les boutons maison (les composants shadcn ont leur propre anneau). */
+  a:focus-visible,
+  summary:focus-visible,
+  button:not([data-slot]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
