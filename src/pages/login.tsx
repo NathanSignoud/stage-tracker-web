@@ -7,12 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 
-/** Erreur renvoyée par Supabase dans l'adresse après un retour de Google (ex. adresse non invitée). */
+/** Erreur renvoyée par Supabase dans l'adresse au retour de Google ou du lien email (ex. adresse non invitée, lien expiré). */
 function redirectError(): string | null {
   const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search);
+  if (params.get("error_code") === "otp_expired") return "Ce lien a expiré ou a déjà servi. Demande un nouveau lien ci-dessous.";
   const description = params.get("error_description");
   return description ? description.replace(/\+/g, " ") : null;
 }
+
+// Lue au chargement du site : la redirection vers /connexion efface l'adresse avant que cette page s'affiche.
+const startupError = redirectError();
 
 function GoogleIcon() {
   return (
@@ -31,7 +35,7 @@ export function LoginPage() {
   const from = (location.state as { from?: string } | null)?.from ?? "/";
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(redirectError);
+  const [error, setError] = useState<string | null>(startupError);
   const [pending, setPending] = useState(false);
 
   if (session) return <Navigate to={from} replace />;

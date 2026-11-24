@@ -10,6 +10,8 @@ create table public.invitations (
 );
 
 alter table public.invitations enable row level security;
+-- Ce projet ne donne aucun accès par défaut aux nouvelles tables : on l'accorde, les règles ci-dessous filtrent ensuite.
+grant select, insert, delete on public.invitations to authenticated;
 
 -- Vrai si la personne connectée est administratrice (security definer : lit la table sans passer par les règles).
 create function public.is_admin()
