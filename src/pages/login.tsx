@@ -76,6 +76,9 @@ export function LoginPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Stage Tracker est sur invitation : connecte-toi avec l&apos;adresse qui a été invitée.
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Première visite ou non, c&apos;est le même bouton : ton compte est créé tout seul la première fois.
+          </p>
 
           {error && (
             <p role="alert" className="mt-4 rounded-2xl bg-tile-stale px-4 py-3 text-sm text-tile-stale-ink">
