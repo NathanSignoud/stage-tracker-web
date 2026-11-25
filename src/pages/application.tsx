@@ -29,6 +29,7 @@ import { interviewsToSchedule } from "@/services/calendar";
 import { listContacts } from "@/services/contacts";
 import { listDocuments } from "@/services/documents";
 import { analyzeOffer } from "@/services/keywords";
+import { cleanUrl } from "@/lib/domain/company-import";
 
 async function loadApplication(id: number) {
   if (!Number.isInteger(id) || id <= 0) return null;
@@ -114,9 +115,9 @@ export function ApplicationPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!app.deletedAt && <StatusSelect applicationId={app.id} company={app.company} status={app.status} />}
-          {app.offerUrl && (
+          {cleanUrl(app.offerUrl) && (
             <Button variant="outline" size="sm" asChild>
-              <a href={app.offerUrl} target="_blank" rel="noreferrer">
+              <a href={cleanUrl(app.offerUrl)!} target="_blank" rel="noreferrer">
                 <ExternalLink /> Offre
               </a>
             </Button>

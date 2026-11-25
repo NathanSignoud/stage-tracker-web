@@ -13,6 +13,7 @@ import { useData } from "@/lib/data";
 import { localDateTime } from "@/lib/dates";
 import { NotFound } from "@/pages/coming-soon";
 import { getContactDetail } from "@/services/contacts";
+import { cleanUrl } from "@/lib/domain/company-import";
 
 export function ContactPage() {
   const id = Number(useParams().id);
@@ -45,7 +46,7 @@ export function ContactPage() {
           )}
           {c.linkedin && (
             <Button variant="outline" size="sm" asChild>
-              <a href={c.linkedin} target="_blank" rel="noreferrer">
+              <a href={cleanUrl(c.linkedin) ?? undefined} target="_blank" rel="noreferrer">
                 <ExternalLink /> LinkedIn
               </a>
             </Button>

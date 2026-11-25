@@ -83,5 +83,9 @@ en croissance"
     expect(cleanUrl("www.alan.com/careers.")).toBe("https://www.alan.com/careers");
     expect(cleanUrl("[Jobs](https://jobs.lever.co/mistral)")).toBe("https://jobs.lever.co/mistral");
     expect(cleanUrl("pas une url")).toBeNull();
+    // Sert aussi à filtrer les liens saisis (offre, LinkedIn) : jamais de javascript: ni data: dans un href.
+    expect(cleanUrl("javascript:alert(1)")).toBeNull();
+    expect(cleanUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
+    expect(cleanUrl("linkedin.com/in/alex")).toBe("https://linkedin.com/in/alex");
   });
 });

@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAction } from "@/components/use-action";
 import type { Contact } from "@/lib/types";
 import { linkContactAction, unlinkContactAction } from "@/actions/applications";
+import { cleanUrl } from "@/lib/domain/company-import";
 
 type LinkedContact = Contact & { relation: string | null };
 
@@ -120,7 +121,7 @@ export function LinkedContactsList({ applicationId, contacts }: { applicationId:
           )}
           {c.linkedin && (
             <Button variant="ghost" size="icon-xs" asChild>
-              <a href={c.linkedin} target="_blank" rel="noreferrer" aria-label="Profil LinkedIn">
+              <a href={cleanUrl(c.linkedin) ?? undefined} target="_blank" rel="noreferrer" aria-label="Profil LinkedIn">
                 <ExternalLink />
               </a>
             </Button>

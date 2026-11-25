@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { normalizeText } from "@/lib/text";
 import type { ContactListItem } from "@/services/contacts";
+import { cleanUrl } from "@/lib/domain/company-import";
 
 export function ContactsTable({ contacts }: { contacts: ContactListItem[] }) {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ export function ContactsTable({ contacts }: { contacts: ContactListItem[] }) {
                       </a>
                     )}
                     {c.linkedin && (
-                      <a href={c.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn" className="hover:text-foreground">
+                      <a href={cleanUrl(c.linkedin) ?? undefined} target="_blank" rel="noreferrer" aria-label="LinkedIn" className="hover:text-foreground">
                         <ExternalLink className="size-4" />
                       </a>
                     )}
