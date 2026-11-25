@@ -1,4 +1,4 @@
-import { ArrowLeft, ExternalLink, FilePlus, MessageSquarePlus, Pencil } from "lucide-react";
+import { ArrowLeft, ExternalLink, FilePlus, FileSignature, GraduationCap, MessageSquarePlus, Pencil } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { EditApplicationButton } from "@/components/applications/application-form";
 import { ContactsPanelActions, LinkedContactsList } from "@/components/applications/contacts-panel";
@@ -9,9 +9,11 @@ import { LinkedDocumentsList } from "@/components/documents/document-links";
 import { InteractionDialog } from "@/components/interactions/interaction-dialog";
 import { Timeline } from "@/components/interactions/timeline";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
+import { MessageButton } from "@/components/messages/message-button";
 import { OfferAnalysis } from "@/components/offer/offer-analysis";
 import { Panel } from "@/components/page-header";
 import { PageLoading } from "@/components/page-loading";
+import { PromptButton } from "@/components/prompts/prompt-button";
 import { PriorityBadge } from "@/components/status";
 import { TaskRow } from "@/components/task-row";
 import { AddTaskForm } from "@/components/tasks/add-task-form";
@@ -125,6 +127,23 @@ export function ApplicationPage() {
           {!app.deletedAt && <TrashButton kind="application" id={app.id} label={app.company} redirectTo="/candidatures" />}
         </div>
       </div>
+
+      {!app.deletedAt && (
+        <div className="-mt-2 mb-4 flex flex-wrap gap-2">
+          <PromptButton applicationId={app.id} />
+          <MessageButton applicationId={app.id} />
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/candidatures/${app.id}/lettre`}>
+              <FileSignature /> Lettre
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/candidatures/${app.id}/preparation`}>
+              <GraduationCap /> Préparer l&apos;entretien
+            </Link>
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="grid min-w-0 content-start gap-4">

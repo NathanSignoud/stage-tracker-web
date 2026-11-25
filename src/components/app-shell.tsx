@@ -8,6 +8,7 @@ import {
   LogOut,
   Moon,
   Plus,
+  Search,
   Settings,
   Sun,
   SunMedium,
@@ -19,7 +20,9 @@ import { useTheme } from "next-themes";
 import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { useAuth } from "@/auth";
+import { CommandSearch } from "@/components/command-search";
 import { ScheduleInterviewDialog } from "@/components/interviews/schedule-interview-dialog";
+import { MessageDialog } from "@/components/messages/message-dialog";
 import { PageLoading } from "@/components/page-loading";
 import { QuickAddDialog } from "@/components/quick-add-dialog";
 import { useUi } from "@/components/ui-state";
@@ -220,7 +223,7 @@ function BottomTabs() {
 }
 
 export function AppShell() {
-  const { setQuickAddOpen } = useUi();
+  const { setQuickAddOpen, setSearchOpen } = useUi();
   return (
     <div className="flex min-h-svh flex-col">
       <a
@@ -234,6 +237,16 @@ export function AppShell() {
           <Brand />
           <TopNav />
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Rechercher (Ctrl K)"
+            className="flex size-10 shrink-0 items-center justify-center gap-2 rounded-full bg-card text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 2xl:w-56 2xl:justify-start 2xl:px-4"
+          >
+            <Search className="size-4 shrink-0" />
+            <span className="hidden flex-1 text-left text-[13px] 2xl:inline">Rechercher</span>
+            <kbd className="hidden rounded-md bg-muted px-1.5 font-mono text-[10px] 2xl:inline">Ctrl K</kbd>
+          </button>
           <Button onClick={() => setQuickAddOpen(true)} className="hidden h-10 px-4 lg:inline-flex" aria-label="Nouvelle candidature (N)">
             <Plus />
             <span className="2xl:hidden">Nouvelle</span>
@@ -253,7 +266,9 @@ export function AppShell() {
 
       <BottomTabs />
       <QuickAddDialog />
+      <CommandSearch />
       <ScheduleInterviewDialog />
+      <MessageDialog />
     </div>
   );
 }

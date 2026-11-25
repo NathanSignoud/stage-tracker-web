@@ -33,14 +33,20 @@ async function advanceStatusOps(input: InteractionInput, now: Date): Promise<Pla
   return STATUSES.indexOf(app.status) < STATUSES.indexOf(target) ? statusChangeOps(app, app.status, target, now) : [];
 }
 
-export async function createInteraction(raw: InteractionData, now = new Date()): Promise<number> {
+/** Écritures qui créent un échange (et ses tâches) ; `base` : position de l'insertion de l'échange dans le plan. */
+export async function createInteractionOps(raw: InteractionData, now: Date, base = 0): Promise<PlanOp[]> {
   const input = normalize(raw);
   const nowIso = now.toISOString();
-  const ops: PlanOp[] = [insert("interactions", { ...input, createdAt: nowIso, updatedAt: nowIso })];
-  ops.push(...nextActionTaskOps(ref(0), [], input, nowIso));
-  ops.push(...(await advanceStatusOps(input, now)));
-  ops.push(...(await interviewTaskOps(ref(0), [], input, nowIso, true)));
-  return (await applyPlan(ops))[0]!;
+  return [
+    insert("interactions", { ...input, createdAt: nowIso, updatedAt: nowIso }),
+    ...nextActionTaskOps(ref(base), [], input, nowIso),
+    ...(await advanceStatusOps(input, now)),
+    ...(await interviewTaskOps(ref(base), [], input, nowIso, true)),
+  ];
+}
+
+export async function createInteraction(raw: InteractionData, now = new Date()): Promise<number> {
+  return (await applyPlan(await createInteractionOps(raw, now)))[0]!;
 }
 
 export async function updateInteraction(id: number, raw: InteractionData, now = new Date()): Promise<void> {

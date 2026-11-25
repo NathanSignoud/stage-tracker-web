@@ -2,7 +2,7 @@ import { lazy } from "react";
 import { Route, Routes } from "react-router";
 import { RequireAuth } from "@/auth";
 import { AppShell } from "@/components/app-shell";
-import { ComingSoon, NotFound } from "@/pages/coming-soon";
+import { NotFound } from "@/pages/coming-soon";
 import { InvitationsPage } from "@/pages/invitations";
 import { LoginPage } from "@/pages/login";
 import { PrivacyPage } from "@/pages/privacy";
@@ -17,11 +17,10 @@ const ContactsPage = lazy(() => import("@/pages/contacts").then((m) => ({ defaul
 const ContactPage = lazy(() => import("@/pages/contact").then((m) => ({ default: m.ContactPage })));
 const CompaniesPage = lazy(() => import("@/pages/companies").then((m) => ({ default: m.CompaniesPage })));
 const DocumentsPage = lazy(() => import("@/pages/documents").then((m) => ({ default: m.DocumentsPage })));
-
-const SOON: [string, string][] = [
-  ["reglages", "Réglages"],
-  ["corbeille", "Corbeille"],
-];
+const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ default: m.SettingsPage })));
+const TrashPage = lazy(() => import("@/pages/trash").then((m) => ({ default: m.TrashPage })));
+const PrepPage = lazy(() => import("@/pages/prep").then((m) => ({ default: m.PrepPage })));
+const LetterPage = lazy(() => import("@/pages/letter").then((m) => ({ default: m.LetterPage })));
 
 export function App() {
   return (
@@ -39,9 +38,10 @@ export function App() {
           <Route path="calendrier" element={<CalendarPage />} />
           <Route path="taches" element={<TasksPage />} />
           <Route path="documents" element={<DocumentsPage />} />
-          {SOON.map(([path, title]) => (
-            <Route key={path} path={path} element={<ComingSoon title={title} />} />
-          ))}
+          <Route path="candidatures/:id/preparation" element={<PrepPage />} />
+          <Route path="candidatures/:id/lettre" element={<LetterPage />} />
+          <Route path="reglages" element={<SettingsPage />} />
+          <Route path="corbeille" element={<TrashPage />} />
           <Route path="invitations" element={<InvitationsPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>

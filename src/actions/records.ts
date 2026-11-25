@@ -7,7 +7,8 @@ import { createInteraction, updateInteraction } from "@/services/interactions";
 import { updateSettings } from "@/services/settings";
 import { createTask, postponeTask, setTaskDone } from "@/services/tasks";
 import { moveToTrash, purgeFromTrash, restoreFromTrash } from "@/services/trash";
-import { mutate } from "./result";
+import { search, type SearchResults } from "@/services/search";
+import { errorMessage, mutate, type ActionResult } from "./result";
 
 const id = z.coerce.number().int().positive();
 const kind = z.enum(TRASH_KINDS);
@@ -90,4 +91,14 @@ export async function purgeFromTrashAction(k: string, itemId: number) {
 
 export async function updateSettingsAction(input: unknown) {
   return mutate(() => updateSettings(settingsInputSchema.parse(input)));
+}
+
+// --- Recherche (lecture seule) ----------------------------------------------
+
+export async function searchAction(query: string): Promise<ActionResult<SearchResults>> {
+  try {
+    return { ok: true, data: await search(z.string().max(200).parse(query)) };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) };
+  }
 }

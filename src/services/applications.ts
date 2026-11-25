@@ -158,13 +158,14 @@ export async function changeStatus(id: number, to: Status, now = new Date()): Pr
  * Envoyée (ce qui planifie la 2e relance), sinon coche simplement les relances ouvertes.
  */
 export async function markFollowedUp(id: number, now = new Date()): Promise<void> {
+  await applyPlan(await markFollowedUpOps(id, now));
+}
+
+export async function markFollowedUpOps(id: number, now: Date): Promise<PlanOp[]> {
   const app = await getLiveApplication(id);
-  if (app.status === "sent") {
-    await applyPlan(await statusChangeOps(app, app.status, "followed_up", now));
-    return;
-  }
+  if (app.status === "sent") return statusChangeOps(app, app.status, "followed_up", now);
   const ids = await openFollowUpTaskIds(id);
-  if (ids.length) await applyPlan([update("tasks", { id: ids }, { doneAt: now.toISOString() })]);
+  return ids.length ? [update("tasks", { id: ids }, { doneAt: now.toISOString() })] : [];
 }
 
 export async function getLiveApplication(id: number): Promise<Application> {

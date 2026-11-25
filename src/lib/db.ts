@@ -110,6 +110,11 @@ export async function rows<T>(table: Table, where: Where = {}): Promise<T[]> {
   return (await backend.select(table, mapKeys(where, toSnake))).map((r) => fromRow<T>(r));
 }
 
+/** Lignes brutes (colonnes de la base), pour l'export « mes données ». */
+export function rawRows(table: Table): Promise<Values[]> {
+  return backend.select(table, {});
+}
+
 /** Une ligne, ou null. */
 export async function row<T>(table: Table, where: Where): Promise<T | null> {
   return (await rows<T>(table, where))[0] ?? null;
