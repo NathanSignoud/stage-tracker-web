@@ -1,35 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PGlite } from "@electric-sql/pglite";
 import { expect, it } from "vitest";
 import { fromRow, ref, toPlanPayload } from "@/lib/db";
-
-// Un vrai Postgres en mémoire (PGlite) + le minimum de Supabase dont nos migrations dépendent :
-// rôles, schéma auth, auth.uid() / auth.jwt() lus dans request.jwt.claims (comme Supabase).
-const SUPABASE_STUB = `
-  create role anon nologin;
-  create role authenticated nologin;
-  create role supabase_auth_admin nologin;
-  create schema auth;
-  create table auth.users (id uuid primary key, email text);
-  create function auth.jwt() returns jsonb language sql stable
-    as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable
-    as $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  grant usage on schema auth to anon, authenticated;
-`;
-
-const root = path.resolve(import.meta.dirname, "..");
-const migrationsDir = path.join(root, "supabase", "migrations");
-
-async function migratedDb() {
-  const db = new PGlite();
-  await db.exec(SUPABASE_STUB);
-  for (const file of readdirSync(migrationsDir).sort()) {
-    await db.exec(readFileSync(path.join(migrationsDir, file), "utf8"));
-  }
-  return db;
-}
+import { migratedDb, root } from "./helpers";
 
 it("migrations puis vérification de sécurité (supabase/tests/verification.sql)", async () => {
   const db = await migratedDb();

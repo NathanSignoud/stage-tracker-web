@@ -1,6 +1,6 @@
 import { DEFAULT_TEMPLATES } from "@/lib/domain/default-templates";
 import { DEFAULT_SETTINGS } from "@/lib/domain/settings";
-import { supabase } from "@/lib/supabase";
+import { row, upsert } from "@/lib/db";
 
 // Données de départ de chaque personne (réglages, mots-clés, gabarits), créées à sa première visite.
 // Nouvelles données livrées plus tard : les ajouter ici et incrémenter SEED_VERSION (rien d'existant n'est écrasé).
@@ -57,30 +57,22 @@ const STARTER_KEYWORDS: { label: string; category: string; aliases?: string[] }[
 
 /** Crée les données de départ manquantes de la personne connectée. */
 export async function ensureSeed(): Promise<void> {
-  const { data, error } = await supabase.from("settings").select("value").eq("key", "seedVersion").maybeSingle();
-  if (error) throw error;
-  if (Number(data?.value ?? 0) >= SEED_VERSION) return;
+  const done = await row<{ value: number }>("settings", { key: "seedVersion" });
+  if (Number(done?.value ?? 0) >= SEED_VERSION) return;
 
   // Chaque insertion ignore ce qui existe déjà : après une coupure, la visite suivante complète sans doublon.
-  const inserts = [
-    supabase
-      .from("settings")
-      .upsert(Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ key, value })), { onConflict: "user_id,key", ignoreDuplicates: true }),
-    supabase.from("keywords").upsert(
-      STARTER_KEYWORDS.map((k) => ({ label: k.label, category: k.category, aliases: k.aliases ?? [] })),
-      { onConflict: "user_id,label", ignoreDuplicates: true },
-    ),
-    supabase.from("templates").upsert(
-      DEFAULT_TEMPLATES.map((t) => ({ kind: t.kind, key: t.key, name: t.name, subject: t.subject ?? null, body: t.body })),
-      { onConflict: "user_id,kind,key", ignoreDuplicates: true },
-    ),
-  ];
-  for (const insert of inserts) {
-    const { error } = await insert;
-    if (error) throw error;
-  }
-  const { error: versionError } = await supabase
-    .from("settings")
-    .upsert({ key: "seedVersion", value: SEED_VERSION }, { onConflict: "user_id,key" });
-  if (versionError) throw versionError;
+  await upsert("settings", Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ key, value })), ["userId", "key"], { ignore: true });
+  await upsert(
+    "keywords",
+    STARTER_KEYWORDS.map((k) => ({ label: k.label, category: k.category, aliases: k.aliases ?? [] })),
+    ["userId", "label"],
+    { ignore: true },
+  );
+  await upsert(
+    "templates",
+    DEFAULT_TEMPLATES.map((t) => ({ kind: t.kind, key: t.key, name: t.name, subject: t.subject ?? null, body: t.body })),
+    ["userId", "kind", "key"],
+    { ignore: true },
+  );
+  await upsert("settings", [{ key: "seedVersion", value: SEED_VERSION }], ["userId", "key"]);
 }

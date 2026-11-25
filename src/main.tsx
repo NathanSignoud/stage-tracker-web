@@ -9,6 +9,7 @@ import { App } from "@/App";
 import { AuthProvider } from "@/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { UiProvider } from "@/components/ui-state";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -16,7 +17,9 @@ createRoot(document.getElementById("root")!).render(
       <TooltipProvider delayDuration={300}>
         <AuthProvider>
           <BrowserRouter>
-            <App />
+            <UiProvider>
+              <App />
+            </UiProvider>
           </BrowserRouter>
         </AuthProvider>
         {/* mobileOffset : au-dessus de la barre d'onglets du téléphone. */}

@@ -7,6 +7,7 @@ import {
   FileText,
   LogOut,
   Moon,
+  Plus,
   Settings,
   Sun,
   SunMedium,
@@ -15,9 +16,13 @@ import {
   Users,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { useAuth } from "@/auth";
+import { ScheduleInterviewDialog } from "@/components/interviews/schedule-interview-dialog";
+import { PageLoading } from "@/components/page-loading";
+import { QuickAddDialog } from "@/components/quick-add-dialog";
+import { useUi } from "@/components/ui-state";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -138,9 +143,10 @@ function MoreMenu() {
   );
 }
 
-/** Téléphone et tablette : barre d'onglets en bas, à portée de pouce. */
+/** Téléphone et tablette : barre d'onglets en bas, à portée de pouce, avec l'ajout au centre. */
 function BottomTabs() {
   const isActive = useIsActive();
+  const { setQuickAddOpen } = useUi();
   const [moreOpen, setMoreOpen] = useState(false);
   const tabs = NAV.filter((n) => TABS.includes(n.href));
   const others = [...NAV.filter((n) => !TABS.includes(n.href)), ...useMoreItems()];
@@ -152,19 +158,31 @@ function BottomTabs() {
       active && "font-semibold text-foreground",
     );
   const pill = (active: boolean) => cn("grid h-7 w-12 place-items-center rounded-full", active && "bg-tile-interview");
+  const tab = ({ href, label, icon: Icon }: NavItem) => (
+    <Link key={href} to={href} aria-current={isActive(href) ? "page" : undefined} className={tabClass(isActive(href))}>
+      <span className={pill(isActive(href))}>
+        <Icon className="size-5" />
+      </span>
+      <span className="truncate">{label}</span>
+    </Link>
+  );
 
   return (
     <>
       <nav aria-label="Navigation principale" className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <div className="mx-auto flex h-16 max-w-lg items-center gap-1 px-2">
-          {tabs.map(({ href, label, icon: Icon }) => (
-            <Link key={href} to={href} aria-current={isActive(href) ? "page" : undefined} className={tabClass(isActive(href))}>
-              <span className={pill(isActive(href))}>
-                <Icon className="size-5" />
-              </span>
-              <span className="truncate">{label}</span>
-            </Link>
-          ))}
+          {tabs.slice(0, 2).map(tab)}
+          <div className="flex flex-1 justify-center">
+            <button
+              type="button"
+              onClick={() => setQuickAddOpen(true)}
+              aria-label="Nouvelle candidature"
+              className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
+            >
+              <Plus className="size-6" />
+            </button>
+          </div>
+          {tabs.slice(2).map(tab)}
           <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" className={tabClass(moreActive)}>
             <span className={pill(moreActive)}>
               <Ellipsis className="size-5" />
@@ -202,6 +220,7 @@ function BottomTabs() {
 }
 
 export function AppShell() {
+  const { setQuickAddOpen } = useUi();
   return (
     <div className="flex min-h-svh flex-col">
       <a
@@ -215,6 +234,11 @@ export function AppShell() {
           <Brand />
           <TopNav />
           <div className="flex-1" />
+          <Button onClick={() => setQuickAddOpen(true)} className="hidden h-10 px-4 lg:inline-flex" aria-label="Nouvelle candidature (N)">
+            <Plus />
+            <span className="2xl:hidden">Nouvelle</span>
+            <span className="hidden 2xl:inline">Nouvelle candidature</span>
+          </Button>
           <ThemeToggle />
           <MoreMenu />
         </div>
@@ -222,10 +246,14 @@ export function AppShell() {
 
       {/* pb : la barre d'onglets du téléphone ne doit jamais masquer la fin de la page. */}
       <main id="contenu" tabIndex={-1} className="min-w-0 flex-1 px-4 pt-2 pb-[calc(6rem+env(safe-area-inset-bottom))] outline-none md:px-6 lg:pt-4 lg:pb-10">
-        <Outlet />
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <BottomTabs />
+      <QuickAddDialog />
+      <ScheduleInterviewDialog />
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 type AuthState = { session: Session | null; loading: boolean; isAdmin: boolean };
 
-const AuthContext = createContext<AuthState>({ session: null, loading: true, isAdmin: false });
+export const AuthContext = createContext<AuthState>({ session: null, loading: true, isAdmin: false });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
