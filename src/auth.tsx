@@ -1,6 +1,8 @@
 import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
+import { toast } from "sonner";
+import { ensureSeed } from "@/lib/seed";
 import { supabase } from "@/lib/supabase";
 
 type AuthState = { session: Session | null; loading: boolean; isAdmin: boolean };
@@ -28,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.rpc("is_admin").then(({ data }) => {
       if (!cancelled) setIsAdmin(data === true);
     });
+    ensureSeed().catch((e: Error) => toast.error(`Impossible de préparer ton compte : ${e.message}`));
     return () => {
       cancelled = true;
     };
