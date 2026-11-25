@@ -3,7 +3,7 @@ import { TRASH_KINDS } from "@/lib/domain/constants";
 import { extractDocumentText } from "@/lib/text-extraction";
 import { contactInputSchema, documentInputSchema, interactionInputSchema, settingsInputSchema, taskInputSchema } from "@/lib/validation";
 import { createContact, updateContact } from "@/services/contacts";
-import { linkDocument, saveDocument, unlinkDocument } from "@/services/documents";
+import { attachDocumentFile, linkDocument, saveDocument, unlinkDocument } from "@/services/documents";
 import { regenerateCalendarToken } from "@/services/calendar";
 import { createInteraction, updateInteraction } from "@/services/interactions";
 import { updateSettings } from "@/services/settings";
@@ -70,6 +70,13 @@ export async function saveDocumentAction(form: FormData) {
     const input = documentInputSchema.parse({ kind: form.get("kind"), label: form.get("label"), content: pasted || extracted });
     if (!file && !input.content) throw new Error("Ajoute un fichier ou colle le texte du document");
     return saveDocument(input, file, applicationId ? { applicationId, sentAt } : null);
+  });
+}
+
+export async function attachDocumentFileAction(documentId: number, file: File) {
+  return mutate(async () => {
+    const text = await extractDocumentText(file.name, new Uint8Array(await file.arrayBuffer()));
+    await attachDocumentFile(id.parse(documentId), file, text);
   });
 }
 

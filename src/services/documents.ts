@@ -35,6 +35,26 @@ export async function saveDocument(
   }
 }
 
+/**
+ * Joint un fichier à une version existante (ou remplace le sien). `text` : texte lu dans le fichier, gardé
+ * seulement si la version n'en avait pas. L'ancien fichier est retiré une fois la ligne mise à jour.
+ */
+export async function attachDocumentFile(id: number, file: File, text: string | null): Promise<void> {
+  const doc = await row<Document>("documents", { id });
+  if (!doc || doc.deletedAt) throw new NotFoundError("Document introuvable");
+  checkFile(file);
+  const filePath = await files.upload(file, file.name, mimeFor(file.name));
+  try {
+    await applyPlan([
+      update("documents", { id }, { filePath, fileName: file.name, mimeType: mimeFor(file.name), ...(!doc.content?.trim() && text ? { content: text } : {}) }),
+    ]);
+  } catch (error) {
+    await files.remove([filePath]).catch(() => {});
+    throw error;
+  }
+  if (doc.filePath) await files.remove([doc.filePath]).catch(() => {});
+}
+
 /** Télécharge le fichier d'une version. */
 export async function downloadDocumentFile(doc: Pick<Document, "filePath">): Promise<Blob> {
   if (!doc.filePath) throw new NotFoundError("Fichier introuvable");

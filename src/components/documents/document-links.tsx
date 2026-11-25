@@ -1,15 +1,48 @@
-import { Download, Eye, X } from "lucide-react";
+import { Download, Eye, Paperclip, X } from "lucide-react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAction } from "@/components/use-action";
 import { formatDay } from "@/lib/dates";
 import { DOCUMENT_KIND_LABELS } from "@/lib/domain/constants";
 import type { Document } from "@/lib/types";
-import { unlinkDocumentAction } from "@/actions/records";
+import { attachDocumentFileAction, unlinkDocumentAction } from "@/actions/records";
 import { errorMessage } from "@/actions/result";
 import { downloadBlob } from "@/lib/download";
+import { ACCEPTED_EXTENSIONS } from "@/lib/text-extraction";
 import { downloadDocumentFile } from "@/services/documents";
 import { toast } from "sonner";
+
+/** Joint un fichier à une version qui n'en a pas (ex. documents importés de la version locale). */
+function AttachFileButton({ documentId, hint }: { documentId: number; hint: string | null }) {
+  const input = useRef<HTMLInputElement>(null);
+  const { pending, run } = useAction();
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        disabled={pending}
+        aria-label="Joindre le fichier"
+        title={hint ? `Joindre le fichier (${hint})` : "Joindre le fichier"}
+        onClick={() => input.current?.click()}
+      >
+        <Paperclip />
+      </Button>
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept={ACCEPTED_EXTENSIONS.join(",")}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) run(() => attachDocumentFileAction(documentId, file), { success: "Fichier joint" });
+        }}
+      />
+    </>
+  );
+}
 
 export function DocumentButtons({ doc }: { doc: Pick<Document, "id" | "label" | "content" | "filePath" | "fileName"> }) {
   return (
@@ -29,6 +62,7 @@ export function DocumentButtons({ doc }: { doc: Pick<Document, "id" | "label" | 
           </DialogContent>
         </Dialog>
       )}
+      {!doc.filePath && <AttachFileButton documentId={doc.id} hint={doc.fileName} />}
       {doc.filePath && (
         <Button
           variant="ghost"

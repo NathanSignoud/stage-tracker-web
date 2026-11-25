@@ -5,7 +5,7 @@ import { setFileStore, type FileStore } from "@/lib/storage";
 import { extractDocumentText } from "@/lib/text-extraction";
 import type { Document } from "@/lib/types";
 import { createApplication } from "@/services/applications";
-import { downloadDocumentFile, saveDocument } from "@/services/documents";
+import { attachDocumentFile, downloadDocumentFile, saveDocument } from "@/services/documents";
 import { moveToTrash, purgeFromTrash } from "@/services/trash";
 import { appInput, testUser } from "./helpers";
 
@@ -89,5 +89,26 @@ describe("documents avec fichier", () => {
     const big = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "cv.pdf");
     await expect(saveDocument({ kind: "cv", label: "CV", content: null }, big, null)).rejects.toThrow(/10 Mo/);
     expect(stored.size).toBe(0);
+  });
+});
+
+describe("joindre un fichier à une version existante", () => {
+  it("le texte lu est gardé seulement s'il manquait ; remplacer retire l'ancien fichier", async () => {
+    await testUser();
+    const stored = memoryStore();
+    const sansTexte = await saveDocument({ kind: "cv", label: "CV importé", content: null }, null, null);
+    const avecTexte = await saveDocument({ kind: "letter", label: "Lettre", content: "Mon texte" }, null, null);
+
+    await attachDocumentFile(sansTexte, new File(["%PDF"], "CV.pdf"), "Texte lu dans le PDF");
+    await attachDocumentFile(avecTexte, new File(["docx"], "lettre.docx"), "Texte lu dans le Word");
+    const docs = await rows<Document>("documents");
+    expect(docs.map((d) => [d.label, d.content, d.fileName])).toEqual([
+      ["CV importé", "Texte lu dans le PDF", "CV.pdf"],
+      ["Lettre", "Mon texte", "lettre.docx"],
+    ]);
+
+    await attachDocumentFile(sansTexte, new File(["%PDF v2"], "CV-v2.pdf"), null);
+    expect(stored.size).toBe(2);
+    expect([...stored.keys()].some((p) => p.endsWith("CV.pdf"))).toBe(false);
   });
 });
