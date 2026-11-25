@@ -56,11 +56,19 @@ export async function importOfferAction(url: string): Promise<ActionResult<Impor
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
       body: JSON.stringify({ url: z.string().max(2000).parse(url) }),
     });
-    const body = (await res.json().catch(() => null)) as (ImportedOffer & { url: string }) | { error?: string } | null;
-    if (!res.ok || !body || "error" in body) return { ok: false, error: (body && "error" in body && body.error) || "Lecture impossible : copie-colle le texte de l'offre." };
-    return { ok: true, data: body as ImportedOffer & { url: string } };
-  } catch (error) {
-    return { ok: false, error: errorMessage(error) };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      return { ok: false, error: body?.error || "Lecture impossible : copie-colle le texte de l'offre." };
+    }
+    // Le serveur transmet la page telle quelle ; on la lit ici (bibliothèque chargée seulement à ce moment-là).
+    const [html, { parseOfferHtml }] = await Promise.all([res.text(), import("@/lib/domain/offer-parsing")]);
+    const offer = parseOfferHtml(html);
+    if (!offer.title && !offer.offerText) {
+      return { ok: false, error: "Impossible de lire cette page (contenu chargé dynamiquement ?) : copie-colle le texte de l'offre." };
+    }
+    return { ok: true, data: { ...offer, url: res.headers.get("X-Offer-Url") ?? url } };
+  } catch {
+    return { ok: false, error: "Page injoignable ou trop volumineuse : copie-colle le texte de l'offre." };
   }
 }
 

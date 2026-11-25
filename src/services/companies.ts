@@ -1,8 +1,9 @@
 import { applyPlan, cmp, insert, row, rows, update, type PlanOp } from "@/lib/db";
 import type { CompanyStatus } from "@/lib/domain/constants";
 import { companyKey, type CompanyRow } from "@/lib/domain/company-import";
-import type { Application, Company, Contact } from "@/lib/types";
+import type { Company } from "@/lib/types";
 import { createApplicationOps, NotFoundError } from "./applications";
+import { allApplications, allContacts } from "./tables";
 
 export type CompanyInput = CompanyRow & { status?: CompanyStatus };
 
@@ -14,8 +15,8 @@ async function liveCompanies(): Promise<Company[]> {
 export async function listCompanies() {
   const [companies, apps, people] = await Promise.all([
     liveCompanies(),
-    rows<Application>("applications", { deletedAt: null }),
-    rows<Contact>("contacts", { deletedAt: null }),
+    allApplications().then((all) => all.filter((a) => !a.deletedAt)),
+    allContacts().then((all) => all.filter((c) => !c.deletedAt)),
   ]);
   return companies.map((c) => {
     const key = companyKey(c.name);
@@ -31,7 +32,7 @@ export type CompanyListItem = Awaited<ReturnType<typeof listCompanies>>[number];
 
 /** Noms déjà connus (liste + candidatures) : à exclure d'une nouvelle recherche avec Claude. */
 export async function knownCompanyNames(): Promise<string[]> {
-  const [companies, apps] = await Promise.all([liveCompanies(), rows<Application>("applications", { deletedAt: null })]);
+  const [companies, apps] = await Promise.all([liveCompanies(), allApplications().then((all) => all.filter((a) => !a.deletedAt))]);
   const byKey = new Map<string, string>();
   for (const n of [...companies.map((c) => c.name), ...apps.map((a) => a.company)]) if (!byKey.has(companyKey(n))) byKey.set(companyKey(n), n);
   return [...byKey.values()].sort((a, b) => a.localeCompare(b, "fr"));
@@ -72,7 +73,7 @@ function applicationFromCompany(c: Pick<Company, "name" | "careersUrl" | "locati
  */
 export async function importCompanies(list: CompanyRow[], options: { createApplications?: boolean } = {}, now = new Date()): Promise<CompanyImportReport> {
   const report: CompanyImportReport = { created: 0, completed: 0, unchanged: 0, applicationsCreated: 0 };
-  const [companies, apps] = await Promise.all([liveCompanies(), rows<Application>("applications", { deletedAt: null })]);
+  const [companies, apps] = await Promise.all([liveCompanies(), allApplications().then((all) => all.filter((a) => !a.deletedAt))]);
   const existing = new Map<string, Pick<Company, "name" | "careersUrl" | "location" | "notes" | "status">>(companies.map((c) => [companyKey(c.name), c]));
   const appKeys = new Set(apps.map((a) => companyKey(a.company)));
   const nowIso = now.toISOString();

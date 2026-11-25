@@ -1,7 +1,8 @@
 import { applyPlan, cmp, insert, ref, remove, row, rows, update, upsert } from "@/lib/db";
-import type { Application, Contact, Interaction } from "@/lib/types";
+import type { Contact, Interaction } from "@/lib/types";
 import type { ContactInput } from "@/lib/validation";
 import { NotFoundError } from "./applications";
+import { allApplications, allContacts } from "./tables";
 
 type ContactLink = { applicationId: number; contactId: number; relation: string | null };
 
@@ -34,11 +35,11 @@ export async function unlinkContact(applicationId: number, contactId: number): P
 
 export async function listContacts() {
   const [contacts, links, apps] = await Promise.all([
-    rows<Contact>("contacts", { deletedAt: null }),
+    allContacts().then((all) => all.filter((c) => !c.deletedAt)),
     rows<ContactLink>("application_contacts"),
-    rows<Application>("applications", { deletedAt: null }),
+    allApplications(),
   ]);
-  const live = new Set(apps.map((a) => a.id));
+  const live = new Set(apps.filter((a) => !a.deletedAt).map((a) => a.id));
   const counts = new Map<number, number>();
   for (const l of links) if (live.has(l.applicationId)) counts.set(l.contactId, (counts.get(l.contactId) ?? 0) + 1);
   return contacts.sort((a, b) => cmp(a.name, b.name)).map((c) => ({ ...c, applicationCount: counts.get(c.id) ?? 0 }));
@@ -51,7 +52,7 @@ export async function getContactDetail(id: number) {
   if (!contact) return null;
   const [links, apps, interactions] = await Promise.all([
     rows<ContactLink>("application_contacts", { contactId: id }),
-    rows<Application>("applications"),
+    allApplications(),
     rows<Interaction>("interactions", { contactId: id, deletedAt: null }),
   ]);
   const appById = new Map(apps.map((a) => [a.id, a]));

@@ -1,8 +1,9 @@
-import { applyPlan, cmp, insert, row, rows, update } from "@/lib/db";
+import { applyPlan, cmp, insert, row, update } from "@/lib/db";
 import { addDays, localDate } from "@/lib/dates";
-import type { Application, Task } from "@/lib/types";
+import type { Task } from "@/lib/types";
 import type { TaskInput } from "@/lib/validation";
 import { isOpenTask, NotFoundError } from "./applications";
+import { allApplications, allTasks } from "./tables";
 
 export async function createTask(input: TaskInput, now = new Date()): Promise<number> {
   return (await applyPlan([insert("tasks", { ...input, origin: "manual", createdAt: now.toISOString() })]))[0]!;
@@ -25,7 +26,8 @@ export type TaskListItem = Task & { company: string | null };
 
 /** Toutes les tâches hors corbeille (et hors candidatures à la corbeille), ouvertes d'abord. */
 export async function listTasks(): Promise<TaskListItem[]> {
-  const [tasks, apps] = await Promise.all([rows<Task>("tasks", { deletedAt: null }), rows<Application>("applications")]);
+  const [allTaskRows, apps] = await Promise.all([allTasks(), allApplications()]);
+  const tasks = allTaskRows.filter((t) => !t.deletedAt);
   const appById = new Map(apps.map((a) => [a.id, a]));
   return tasks
     .filter((t) => !(t.applicationId && appById.get(t.applicationId)?.deletedAt))

@@ -21,6 +21,20 @@ function todayIn(timeZone: string, now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/**
+ * Supabase met en pause un projet gratuit après une semaine sans activité (le site serait alors hors ligne
+ * jusqu'à une relance manuelle). Une requête quotidienne qui interroge la base suffit en général : on appelle
+ * calendar_feed avec un jeton qui n'existe pas (aucune donnée renvoyée, coût négligeable).
+ */
+export async function keepSupabaseAwake(env: Env): Promise<number> {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/calendar_feed`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${env.SUPABASE_PUBLISHABLE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ feed_token: "maintien-en-activite-quotidien" }),
+  });
+  return res.status;
+}
+
 export async function handleCalendarFeed(token: string, request: Request, env: Env, now = new Date()): Promise<Response> {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/calendar_feed`, {
     method: "POST",

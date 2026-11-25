@@ -21,7 +21,7 @@ export async function scoreOffer(text: string | null | undefined): Promise<numbe
 
 /** Après une modification de la liste (ou de « je maîtrise »), tous les scores sont recalculés (même écriture groupée). */
 async function recomputeOps(list: MatchKeyword[]): Promise<PlanOp[]> {
-  return (await rows<Application>("applications", { deletedAt: null })).map((app) =>
+  return (await rows<Pick<Application, "id" | "offerText">>("applications", { deletedAt: null }, ["id", "offerText"])).map((app) =>
     update("applications", { id: app.id }, { matchScore: app.offerText?.trim() ? matchKeywords(app.offerText, list).score : null }),
   );
 }

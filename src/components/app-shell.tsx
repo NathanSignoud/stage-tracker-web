@@ -19,6 +19,8 @@ import {
 import { useTheme } from "next-themes";
 import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
+import logoDark from "@/assets/logo-dark.svg";
+import logo from "@/assets/logo.svg";
 import { useAuth } from "@/auth";
 import { CommandSearch } from "@/components/command-search";
 import { ScheduleInterviewDialog } from "@/components/interviews/schedule-interview-dialog";
@@ -73,10 +75,9 @@ const signOut = () => supabase.auth.signOut();
 
 function Brand() {
   return (
-    <Link to="/" className="flex shrink-0 items-center gap-1 rounded-lg font-heading text-[15px] font-bold tracking-tight">
-      stage
-      <span aria-hidden="true" className="size-1.5 rounded-full bg-foreground" />
-      tracker
+    <Link to="/" aria-label="Stage Tracker : Aujourd'hui" className="flex shrink-0 items-center rounded-lg">
+      <img src={logo} alt="" width={155} height={28} className="h-7 w-auto dark:hidden" />
+      <img src={logoDark} alt="" width={155} height={28} className="hidden h-7 w-auto dark:block" />
     </Link>
   );
 }

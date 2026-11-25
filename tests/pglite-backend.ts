@@ -32,7 +32,7 @@ const ident = (name: string) => {
 /** Ce que fait Supabase pour le site, mais sur PGlite (mêmes règles RLS : on est connecté en tant que la personne). */
 export function pgliteBackend(db: PGlite): DbBackend {
   return {
-    async select(table, where) {
+    async select(table, where, columns) {
       const params: string[] = [];
       const conditions = Object.entries(where).map(([column, value]) => {
         if (value === null) return `t.${ident(column)} is null`;
@@ -40,7 +40,8 @@ export function pgliteBackend(db: PGlite): DbBackend {
         return Array.isArray(value) ? `$${params.length}::jsonb @> to_jsonb(t.${ident(column)})` : `to_jsonb(t.${ident(column)}) = $${params.length}::jsonb`;
       });
       const filter = conditions.length ? ` where ${conditions.join(" and ")}` : "";
-      const sql = `select * from public.${ident(table)} t${filter} order by ${orderColumns(table).map(ident).join(", ")}`;
+      const list = columns ? columns.map(ident).join(", ") : "*";
+      const sql = `select ${list} from public.${ident(table)} t${filter} order by ${orderColumns(table).map(ident).join(", ")}`;
       return (await db.query<Record<string, unknown>>(sql, params)).rows;
     },
     async applyPlan(payload) {

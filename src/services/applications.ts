@@ -3,10 +3,11 @@ import { addDays, isoToLocalDate, localDate, localDateTime } from "@/lib/dates";
 import type { Status } from "@/lib/domain/constants";
 import { isStale, lastActivityDate, planStatusChange } from "@/lib/domain/follow-ups";
 import type { ImportedOffer } from "@/lib/domain/offer-parsing";
-import type { Application, Contact, Document, Interaction, StatusChange, Tag, Task } from "@/lib/types";
+import type { Application, ApplicationSummary, Document, Interaction, StatusChange, Tag, Task } from "@/lib/types";
 import type { ApplicationInput, QuickAddInput } from "@/lib/validation";
 import { scoreOffer } from "./keywords";
 import { getSettings } from "./settings";
+import { allApplications, allContacts, allInteractions, allStatusChanges, allTasks } from "./tables";
 
 export class NotFoundError extends Error {
   constructor(what = "Élément introuvable") {
@@ -178,7 +179,7 @@ export async function listTagNames(): Promise<string[]> {
   return (await rows<Tag>("tags")).map((t) => t.name).sort(cmp);
 }
 
-export type ApplicationListItem = Application & {
+export type ApplicationListItem = ApplicationSummary & {
   tags: string[];
   lastActivity: string | null;
   stale: boolean;
@@ -191,15 +192,18 @@ type Link = { applicationId: number; tagId: number };
 export async function listApplications(now = new Date()): Promise<ApplicationListItem[]> {
   const today = localDate(now);
   const nowLocal = localDateTime(now);
-  const [apps, links, tags, changes, interactions, openTasks, { staleAfterDays }] = await Promise.all([
-    rows<Application>("applications", { deletedAt: null }),
+  const [allApps, links, tags, changes, allExchanges, tasks, { staleAfterDays }] = await Promise.all([
+    allApplications(),
     rows<Link>("application_tags"),
     rows<Tag>("tags"),
-    rows<StatusChange>("status_changes"),
-    rows<Interaction>("interactions", { deletedAt: null }),
-    rows<Task>("tasks", OPEN_TASK),
+    allStatusChanges(),
+    allInteractions(),
+    allTasks(),
     getSettings(),
   ]);
+  const apps = allApps.filter((a) => !a.deletedAt);
+  const interactions = allExchanges.filter((i) => !i.deletedAt);
+  const openTasks = tasks.filter(isOpenTask);
 
   const tagName = new Map(tags.map((t) => [t.id, t.name]));
   const tagsByApp = new Map<number, string[]>();
@@ -235,17 +239,20 @@ export async function getApplicationDetail(id: number) {
   const application = await row<Application>("applications", { id });
   if (!application) return null;
 
-  const [links, tags, history, interactions, contacts, contactLinks, documents, documentLinks, tasks] = await Promise.all([
+  const [links, tags, changes, interactions, contacts, contactLinks, documentLinks, allTaskRows] = await Promise.all([
     rows<Link>("application_tags", { applicationId: id }),
     rows<Tag>("tags"),
     rows<StatusChange>("status_changes", { applicationId: id }),
     rows<Interaction>("interactions", { applicationId: id, deletedAt: null }),
-    rows<Contact>("contacts"),
+    allContacts(),
     rows<{ contactId: number; relation: string | null }>("application_contacts", { applicationId: id }),
-    rows<Document>("documents", { deletedAt: null }),
     rows<{ documentId: number; sentAt: string | null }>("application_documents", { applicationId: id }),
-    rows<Task>("tasks", { applicationId: id, deletedAt: null }),
+    allTasks(),
   ]);
+  const history = changes;
+  const tasks = allTaskRows.filter((t) => t.applicationId === id && !t.deletedAt);
+  // Seulement les versions envoyées à cette candidature (avec leur texte, pour « Voir le texte »).
+  const documents = documentLinks.length ? await rows<Document>("documents", { id: documentLinks.map((l) => l.documentId), deletedAt: null }) : [];
   const contactById = new Map(contacts.map((c) => [c.id, c]));
   const tagIds = new Set(links.map((l) => l.tagId));
 

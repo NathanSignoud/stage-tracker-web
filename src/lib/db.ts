@@ -56,7 +56,8 @@ export function toPlanPayload(ops: PlanOp[]) {
 
 /** Ce que les services demandent à la base (clés déjà en snake_case). */
 export type DbBackend = {
-  select(table: Table, where: Where): Promise<Values[]>;
+  /** `columns` : colonnes à lire (toutes si absent). */
+  select(table: Table, where: Where, columns?: string[]): Promise<Values[]>;
   applyPlan(payload: ReturnType<typeof toPlanPayload>): Promise<(number | null)[]>;
   /** Insère ou met à jour selon la contrainte unique `conflict` ; `ignore` : garde les lignes existantes. */
   upsert(table: Table, rows: Values[], conflict: string, ignore: boolean): Promise<void>;
@@ -74,17 +75,17 @@ const ORDER: Partial<Record<Table, string[]>> = {
 export const orderColumns = (table: Table): string[] => ORDER[table] ?? ["id"];
 
 const supabaseBackend: DbBackend = {
-  async select(table, where) {
+  async select(table, where, columns) {
     const out: Values[] = [];
     for (let from = 0; ; from += PAGE) {
-      let query = supabase.from(table).select("*");
+      let query = supabase.from(table).select(columns?.join(",") ?? "*");
       for (const [column, value] of Object.entries(where)) {
         query = value === null ? query.is(column, null) : Array.isArray(value) ? query.in(column, value) : query.eq(column, value);
       }
       for (const column of orderColumns(table)) query = query.order(column);
       const { data, error } = await query.range(from, from + PAGE - 1);
       if (error) throw error;
-      out.push(...data);
+      out.push(...(data as unknown as Values[])); // colonnes choisies à l'exécution : supabase-js ne peut pas en déduire le type
       if (data.length < PAGE) return out;
     }
   },
@@ -103,11 +104,33 @@ let backend = supabaseBackend;
 /** Tests uniquement : remplace Supabase par une autre base. */
 export const setBackend = (b: DbBackend) => {
   backend = b;
+  clearReadCache();
 };
 
-/** Lignes de la personne connectée (les règles RLS filtrent le reste). */
-export async function rows<T>(table: Table, where: Where = {}): Promise<T[]> {
-  return (await backend.select(table, mapKeys(where, toSnake))).map((r) => fromRow<T>(r));
+// Une page lit souvent plusieurs fois la même table (ex. le tableau de bord : candidatures pour la liste, les
+// entretiens, le calendrier…). Les lectures identiques partagent un seul téléchargement pendant quelques secondes ;
+// tout est oublié à chaque écriture et à chaque changement de compte (moins de requêtes et de données chez Supabase).
+const READ_CACHE_MS = 5_000;
+const readCache = new Map<string, { at: number; rows: Promise<Values[]> }>();
+
+export function clearReadCache(): void {
+  readCache.clear();
+}
+
+function cachedSelect(table: Table, where: Where, columns?: string[]): Promise<Values[]> {
+  const key = JSON.stringify([table, where, columns]);
+  const hit = readCache.get(key);
+  if (hit && Date.now() - hit.at < READ_CACHE_MS) return hit.rows;
+  const result = backend.select(table, where, columns);
+  readCache.set(key, { at: Date.now(), rows: result });
+  result.catch(() => readCache.delete(key));
+  return result;
+}
+
+/** Lignes de la personne connectée (les règles RLS filtrent le reste). `columns` : seulement ces colonnes. */
+export async function rows<T>(table: Table, where: Where = {}, columns?: readonly string[]): Promise<T[]> {
+  const raw = await cachedSelect(table, mapKeys(where, toSnake), columns?.map(toSnake));
+  return raw.map((r) => fromRow<T>(r)); // nouveaux objets à chaque appel : le cache n'est jamais modifié
 }
 
 /** Lignes brutes (colonnes de la base), pour l'export « mes données ». */
@@ -121,14 +144,25 @@ export async function row<T>(table: Table, where: Where): Promise<T | null> {
 }
 
 /** Applique les écritures d'un bloc (tout ou rien). Renvoie l'id inséré par chaque opération (null sinon). */
-export function applyPlan(ops: PlanOp[]): Promise<(number | null)[]> {
-  return ops.length ? backend.applyPlan(toPlanPayload(ops)) : Promise.resolve([]);
+export async function applyPlan(ops: PlanOp[]): Promise<(number | null)[]> {
+  if (!ops.length) return [];
+  clearReadCache();
+  try {
+    return await backend.applyPlan(toPlanPayload(ops));
+  } finally {
+    clearReadCache(); // une lecture lancée pendant l'écriture ne doit pas survivre
+  }
 }
 
 /** Insertion ou mise à jour en une requête. `conflict` : colonnes d'une contrainte unique de la table, en camelCase. */
-export function upsert(table: Table, values: Values[], conflict: string[], { ignore = false } = {}): Promise<void> {
-  if (!values.length) return Promise.resolve();
-  return backend.upsert(table, values.map((v) => mapKeys(v, toSnake)), conflict.map(toSnake).join(","), ignore);
+export async function upsert(table: Table, values: Values[], conflict: string[], { ignore = false } = {}): Promise<void> {
+  if (!values.length) return;
+  clearReadCache();
+  try {
+    await backend.upsert(table, values.map((v) => mapKeys(v, toSnake)), conflict.map(toSnake).join(","), ignore);
+  } finally {
+    clearReadCache();
+  }
 }
 
 export const insert = (table: Table, values: Values): PlanOp => ({ table, op: "insert", values });

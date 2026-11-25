@@ -27,7 +27,8 @@ import { NotFound } from "@/pages/coming-soon";
 import { getApplicationDetail, listTagNames } from "@/services/applications";
 import { interviewsToSchedule } from "@/services/calendar";
 import { listContacts } from "@/services/contacts";
-import { listDocuments } from "@/services/documents";
+import { rows } from "@/lib/db";
+import type { Document } from "@/lib/types";
 import { analyzeOffer } from "@/services/keywords";
 import { cleanUrl } from "@/lib/domain/company-import";
 
@@ -40,9 +41,9 @@ async function loadApplication(id: number) {
     interviewsToSchedule(),
     analyzeOffer(detail.application.offerText),
     listTagNames(),
-    listDocuments(),
+    rows<Pick<Document, "id" | "label" | "kind">>("documents", { deletedAt: null }, ["id", "label", "kind"]),
   ]);
-  const documentOptions = documents.map((d) => ({ id: d.id, label: d.label, kind: d.kind }));
+  const documentOptions = documents;
   return { detail, allContacts, pendingKind: pending.find((a) => a.id === id)?.kind ?? null, match, tagSuggestions, documentOptions };
 }
 

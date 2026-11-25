@@ -1,10 +1,10 @@
-import { cmp, rows } from "@/lib/db";
+import { cmp } from "@/lib/db";
 import { addDays, isoToLocalDate, localDate, localDateTime, startOfWeek } from "@/lib/dates";
 import { APPOINTMENT_TYPES, CLOSED_STATUSES, DEFAULT_INTERVIEW_MINUTES, INTERVIEW_STATUSES, OPEN_STATUSES, type Status } from "@/lib/domain/constants";
-import type { Application, Contact, Interaction, StatusChange, Task } from "@/lib/types";
-import { listApplications, OPEN_TASK } from "./applications";
+import { isOpenTask, listApplications } from "./applications";
 import { interviewsToSchedule, listCalendarEvents } from "./calendar";
 import { getSettings } from "./settings";
+import { allApplications, allContacts, allInteractions, allStatusChanges, allTasks } from "./tables";
 
 /** Statuts qui signifient « l'entreprise a répondu ». */
 const RESPONSE_STATUSES: Status[] = [...INTERVIEW_STATUSES, "offer", "accepted", "rejected"];
@@ -18,11 +18,11 @@ export async function getDashboard(now = new Date()) {
 
   const [settings, tasks, apps, contacts, interactions, statusChanges, allApps, toSchedule, upcoming] = await Promise.all([
     getSettings(),
-    rows<Task>("tasks", OPEN_TASK),
-    rows<Application>("applications"),
-    rows<Contact>("contacts"),
-    rows<Interaction>("interactions", { deletedAt: null }),
-    rows<StatusChange>("status_changes"),
+    allTasks().then((t) => t.filter(isOpenTask)),
+    allApplications(),
+    allContacts(),
+    allInteractions().then((all) => all.filter((i) => !i.deletedAt)),
+    allStatusChanges(),
     listApplications(now),
     interviewsToSchedule(),
     // Les 7 prochains jours (aujourd'hui inclus) pour la frise de la semaine.

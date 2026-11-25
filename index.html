@@ -6,7 +6,15 @@
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f6fa" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121019" />
     <meta name="description" content="Suivi de candidatures de stage" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Raccourci sur l'écran d'accueil : Android lit le manifeste, l'iPhone les balises apple-*. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Stages" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Stage Tracker</title>
     <!-- Avant l'affichage : applique le thème clair/sombre mémorisé (évite un flash). Fichier séparé pour la CSP. -->
     <script src="/theme.js"></script>

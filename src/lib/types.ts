@@ -40,6 +40,9 @@ export type Application = Owned & {
   deletedAt: string | null;
 };
 
+/** Candidature sans ses longs textes (offre, notes) : ce qu'utilisent les listes et le tableau de bord. */
+export type ApplicationSummary = Omit<Application, "offerText" | "notes" | "userId">;
+
 export type StatusChange = Owned & {
   id: number;
   applicationId: number;
@@ -82,6 +85,9 @@ export type Interaction = Owned & {
   updatedAt: string;
   deletedAt: string | null;
 };
+
+/** Échange sans son compte rendu. */
+export type InteractionSummary = Omit<Interaction, "content" | "userId">;
 
 export type Document = Owned & {
   id: number;

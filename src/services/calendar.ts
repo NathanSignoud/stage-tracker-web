@@ -3,9 +3,10 @@ import { localDate } from "@/lib/dates";
 import { icsEventsFrom, interviewLabel, MEETING_TYPES, meetingToIcs } from "@/lib/calendar-feed";
 import { STATUS_INTERVIEW_KINDS, type InterviewKind, type Status } from "@/lib/domain/constants";
 import type { IcsEvent } from "@/lib/ics";
-import type { Application, Contact, Interaction, Task } from "@/lib/types";
-import { OPEN_TASK } from "./applications";
+import type { Application, Contact, Interaction } from "@/lib/types";
+import { isOpenTask } from "./applications";
 import { getRawSetting } from "./settings";
+import { allApplications, allContacts, allInteractions, allTasks } from "./tables";
 
 export const CALENDAR_EVENT_KINDS = ["interview", "deadline", "task"] as const;
 export type CalendarEventKind = (typeof CALENDAR_EVENT_KINDS)[number];
@@ -35,10 +36,10 @@ export async function listCalendarEvents(
   kinds: readonly CalendarEventKind[] = CALENDAR_EVENT_KINDS,
 ): Promise<CalendarEvent[]> {
   const [apps, interactions, contacts, tasks] = await Promise.all([
-    rows<Application>("applications"),
-    kinds.includes("interview") ? rows<Interaction>("interactions", { deletedAt: null, type: MEETING_TYPES }) : [],
-    kinds.includes("interview") ? rows<Contact>("contacts") : [],
-    kinds.includes("task") ? rows<Task>("tasks", OPEN_TASK) : [],
+    allApplications(),
+    kinds.includes("interview") ? allInteractions().then((all) => all.filter((i) => !i.deletedAt && MEETING_TYPES.includes(i.type))) : [],
+    kinds.includes("interview") ? allContacts() : [],
+    kinds.includes("task") ? allTasks().then((t) => t.filter(isOpenTask)) : [],
   ]);
   const appById = new Map(apps.map((a) => [a.id, a]));
   const contactName = new Map(contacts.map((c) => [c.id, c.name]));
@@ -88,9 +89,9 @@ export async function listCalendarEvents(
  * correspondant planifié : il faut y mettre une date.
  */
 export async function interviewsToSchedule() {
-  const pending = await rows<Application>("applications", { deletedAt: null, status: Object.keys(STATUS_INTERVIEW_KINDS) });
-  if (!pending.length) return [];
-  const scheduled = await rows<Interaction>("interactions", { deletedAt: null, type: "interview", applicationId: pending.map((a) => a.id) });
+  const [apps, interactions] = await Promise.all([allApplications(), allInteractions()]);
+  const pending = apps.filter((a) => !a.deletedAt && a.status in STATUS_INTERVIEW_KINDS);
+  const scheduled = interactions.filter((i) => !i.deletedAt && i.type === "interview");
   return pending
     .filter((a) => {
       const expected = STATUS_INTERVIEW_KINDS[a.status as Status] ?? [];
@@ -113,9 +114,9 @@ export type InterviewToSchedule = Awaited<ReturnType<typeof interviewsToSchedule
 /** Événements exportés : entretiens et appels (90 derniers jours → futur) + dates limites à venir. */
 export async function listIcsEvents(baseUrl: string, now = new Date()): Promise<IcsEvent[]> {
   const [interactions, applications, contacts] = await Promise.all([
-    rows<Interaction>("interactions", { deletedAt: null, type: MEETING_TYPES }),
-    rows<Application>("applications"),
-    rows<Contact>("contacts"),
+    rows<Interaction>("interactions", { deletedAt: null, type: MEETING_TYPES }), // avec le compte rendu (description)
+    allApplications(),
+    allContacts(),
   ]);
   return icsEventsFrom({ interactions, applications, contacts }, baseUrl, localDate(now));
 }

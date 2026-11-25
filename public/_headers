@@ -5,3 +5,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Fichiers du site dont le nom change à chaque version (empreinte) : gardés un an, jamais revérifiés.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

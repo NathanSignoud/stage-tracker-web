@@ -1,8 +1,9 @@
 import { applyPlan, cmp, remove, row, rows, update, type PlanOp, type Table } from "@/lib/db";
 import { INTERACTION_LABELS, type TrashKind } from "@/lib/domain/constants";
 import { files } from "@/lib/storage";
-import type { Application, Company, Contact, Document, Interaction, PrepQuestion, Task } from "@/lib/types";
+import type { Company, Document, PrepQuestion, Task } from "@/lib/types";
 import { NotFoundError } from "./applications";
+import { allApplications, allContacts, allInteractions, allTasks } from "./tables";
 
 // Corbeille : « supprimer » renseigne deleted_at ; seule la corbeille supprime définitivement.
 
@@ -62,13 +63,13 @@ export type TrashItem = { kind: TrashKind; id: number; label: string; detail: st
 
 export async function listTrash(): Promise<TrashItem[]> {
   const [apps, contacts, interactions, tasks, questions, companies, documents] = await Promise.all([
-    rows<Application>("applications"),
-    rows<Contact>("contacts"),
-    rows<Interaction>("interactions"),
-    rows<Task>("tasks"),
+    allApplications(),
+    allContacts(),
+    allInteractions(),
+    allTasks(),
     rows<PrepQuestion>("prep_questions"),
     rows<Company>("companies"),
-    rows<Document>("documents"),
+    rows<Pick<Document, "id" | "label" | "fileName" | "deletedAt">>("documents", {}, ["id", "label", "fileName", "deletedAt"]),
   ]);
   const company = (id: number | null) => (id && apps.find((a) => a.id === id)?.company) || null;
   const deletedInteractions = new Set(interactions.filter((i) => i.deletedAt).map((i) => i.id));

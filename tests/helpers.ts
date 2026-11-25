@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { setBackend } from "@/lib/db";
+import { clearReadCache, setBackend } from "@/lib/db";
 import { pgliteBackend, SUPABASE_STUB } from "./pglite-backend";
 import type { ApplicationInput } from "@/lib/validation";
 
@@ -36,6 +36,7 @@ export async function testUser(): Promise<string> {
   await db.query("insert into auth.users (id) values ($1)", [id]);
   await db.exec("set role authenticated");
   await db.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: id })]);
+  clearReadCache(); // nouvelle personne : rien de la précédente ne doit être servi
   return id;
 }
 

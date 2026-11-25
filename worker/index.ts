@@ -1,4 +1,4 @@
-import { handleCalendarFeed } from "./calendar";
+import { handleCalendarFeed, keepSupabaseAwake } from "./calendar";
 import { json, type Env } from "./http";
 import { handleOfferImport } from "./offer";
 
@@ -15,5 +15,10 @@ export default {
     if (feed && request.method === "GET") return handleCalendarFeed(feed[1], request, env);
     if (pathname.startsWith("/api/")) return json({ error: "Introuvable" }, 404);
     return env.ASSETS.fetch(request);
+  },
+
+  /** Tâche planifiée (wrangler.jsonc, triggers.crons) : une fois par jour. */
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+    ctx.waitUntil(keepSupabaseAwake(env));
   },
 };

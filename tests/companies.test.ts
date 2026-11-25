@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { row as readRow } from "@/lib/db";
+import type { Application } from "@/lib/types";
 import { createApplication, listApplications } from "@/services/applications";
 import { createApplicationFromCompany, createCompany, importCompanies, listCompanies } from "@/services/companies";
 import { createContact } from "@/services/contacts";
@@ -42,7 +44,8 @@ describe("liste d'entreprises", () => {
     );
     expect(report.applicationsCreated).toBe(1);
     const photoroom = (await listApplications()).find((a) => a.company === "Photoroom")!;
-    expect(photoroom).toMatchObject({ status: "to_explore", offerUrl: "https://jobs.photoroom.com", location: "Paris", source: "career_site", notes: "Vision" });
+    // La liste ne transporte pas les notes (longs textes) : on relit la candidature elle-même.
+    expect(await readRow<Application>("applications", { id: photoroom.id })).toMatchObject({ status: "to_explore", offerUrl: "https://jobs.photoroom.com", location: "Paris", source: "career_site", notes: "Vision" });
   });
 
   it("candidatures et contacts rapprochés par le nom ; « Candidater » depuis la liste", async () => {

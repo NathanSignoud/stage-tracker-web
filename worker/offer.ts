@@ -1,9 +1,11 @@
-import { parseOfferHtml, robotsAllows, type ImportedOffer } from "../src/lib/domain/offer-parsing";
+import { robotsAllows } from "../src/lib/domain/offer-parsing";
 import { json, type Env } from "./http";
 
-// Lecture ponctuelle d'UNE page d'offre dont l'utilisateur colle le lien (repris de la version locale,
+// Récupération ponctuelle d'UNE page d'offre dont l'utilisateur colle le lien (repris de la version locale,
 // src/server/services/offer-import.ts). Pas de scraping : robots.txt est respecté, LinkedIn (qui interdit
 // la lecture automatique) est refusé d'office, chaque redirection est vérifiée AVANT d'être suivie.
+// La page est transmise telle quelle au navigateur, qui la lit (src/actions/features.ts) : la lire ici coûterait
+// ~33 ms de calcul pour 200 Ko, or l'offre gratuite de Cloudflare accorde 10 ms par appel.
 
 const USER_AGENT = "StageTracker/1.0 (outil personnel de suivi de candidatures)";
 const MAX_BYTES = 3_000_000;
@@ -41,33 +43,26 @@ async function get(url: string, timeoutMs: number): Promise<{ res: Response; fin
   throw new OfferImportError("Trop de redirections : copie-colle le texte de l'offre.");
 }
 
-/** Lit le corps sans dépasser `max` octets (une page énorme ne doit pas saturer la mémoire du serveur). */
-async function readCapped(res: Response, max: number): Promise<string> {
-  if (Number(res.headers.get("content-length") ?? 0) > max) throw new OfferImportError("Page trop volumineuse.");
-  if (!res.body) return "";
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
+/** Laisse passer le corps tel quel (aucun décodage, presque aucun calcul) mais coupe au-delà de `max` octets. */
+function capped(body: ReadableStream<Uint8Array>, max: number): ReadableStream<Uint8Array> {
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel();
-      throw new OfferImportError("Page trop volumineuse.");
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const c of chunks) {
-    bytes.set(c, offset);
-    offset += c.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        size += chunk.byteLength;
+        if (size > max) controller.error(new OfferImportError("Page trop volumineuse."));
+        else controller.enqueue(chunk);
+      },
+    }),
+  );
 }
 
-export async function importOfferFromUrl(raw: string): Promise<ImportedOffer & { url: string }> {
+async function readSmall(res: Response, max: number): Promise<string> {
+  return new Response(res.body ? capped(res.body, max) : null).text();
+}
+
+/** Vérifie le lien, robots.txt et chaque redirection, puis renvoie la réponse de la page (corps non lu). */
+export async function fetchOfferPage(raw: string): Promise<{ res: Response; finalUrl: string }> {
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -79,12 +74,12 @@ export async function importOfferFromUrl(raw: string): Promise<ImportedOffer & {
 
   try {
     const { res: robots } = await get(`${url.origin}/robots.txt`, 5_000);
-    if (robots.ok && !robotsAllows(await readCapped(robots, 500_000), url.pathname + url.search)) {
+    if (robots.ok && !robotsAllows(await readSmall(robots, 500_000), url.pathname + url.search)) {
       throw new OfferImportError("Ce site interdit la lecture automatique de cette page : copie-colle le texte de l'offre.");
     }
   } catch (error) {
     if (error instanceof OfferImportError) throw error;
-    // robots.txt injoignable : traité comme absent.
+    // robots.txt injoignable ou trop gros : traité comme absent.
   }
 
   let res: Response;
@@ -97,11 +92,8 @@ export async function importOfferFromUrl(raw: string): Promise<ImportedOffer & {
   }
   if (!res.ok) throw new OfferImportError(`La page a répondu ${res.status} : copie-colle le texte de l'offre.`);
   if (!(res.headers.get("content-type") ?? "").includes("html")) throw new OfferImportError("Ce lien n'est pas une page web.");
-  const offer = parseOfferHtml(await readCapped(res, MAX_BYTES));
-  if (!offer.title && !offer.offerText) {
-    throw new OfferImportError("Impossible de lire cette page (contenu chargé dynamiquement ?) : copie-colle le texte de l'offre.");
-  }
-  return { ...offer, url: finalUrl };
+  if (Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) throw new OfferImportError("Page trop volumineuse.");
+  return { res, finalUrl };
 }
 
 /** Personne connectée au site (jeton Supabase envoyé par le navigateur), sinon null. */
@@ -112,7 +104,11 @@ async function authenticatedUser(request: Request, env: Env): Promise<{ id: stri
   return res.ok ? ((await res.json()) as { id: string }) : null;
 }
 
-/** POST /api/offer { url } : réservé aux personnes connectées (sinon, le site servirait de relais à n'importe qui). */
+/**
+ * POST /api/offer { url } : réservé aux personnes connectées (sinon, le site servirait de relais à n'importe qui).
+ * Réponse : le code HTML de la page, en texte brut (jamais interprété comme une page de ce site), et son adresse
+ * finale dans l'en-tête X-Offer-Url.
+ */
 export async function handleOfferImport(request: Request, env: Env): Promise<Response> {
   if (!(await authenticatedUser(request, env))) return json({ error: "Connecte-toi pour importer une offre." }, 401);
   let url: unknown;
@@ -123,7 +119,17 @@ export async function handleOfferImport(request: Request, env: Env): Promise<Res
   }
   if (typeof url !== "string" || url.length > 2000) return json({ error: "Lien invalide." }, 400);
   try {
-    return json(await importOfferFromUrl(url));
+    const { res, finalUrl } = await fetchOfferPage(url);
+    const charset = /charset=([\w-]+)/i.exec(res.headers.get("content-type") ?? "")?.[1] ?? "utf-8";
+    return new Response(res.body ? capped(res.body, MAX_BYTES) : null, {
+      headers: {
+        "Content-Type": `text/plain; charset=${charset}`,
+        "X-Offer-Url": finalUrl,
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     return json({ error: error instanceof OfferImportError ? error.message : "Lecture impossible : copie-colle le texte de l'offre." }, 422);
   }

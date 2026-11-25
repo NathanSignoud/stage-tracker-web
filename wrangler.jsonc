@@ -11,6 +11,8 @@
     // Toute autre adresse inconnue renvoie index.html : le routeur React gère /calendrier, /candidatures/12…
     "not_found_handling": "single-page-application"
   },
+  // Chaque jour à 7 h 17 (UTC) : une petite requête à Supabase pour que le projet gratuit ne soit pas mis en pause.
+  "triggers": { "crons": ["17 7 * * *"] },
   // Valeurs publiques (les mêmes que dans .env) : la clé publique ne donne accès qu'à ce que les règles RLS autorisent.
   "vars": {
     "SUPABASE_URL": "https://ahyqkicjetcxcapcblir.supabase.co",

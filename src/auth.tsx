@@ -2,6 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { toast } from "sonner";
+import { clearReadCache } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 import { supabase } from "@/lib/supabase";
 
@@ -19,7 +20,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      clearReadCache(); // déconnexion ou autre compte : ne rien resservir des lectures précédentes
+      setSession(next);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 

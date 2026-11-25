@@ -1,6 +1,8 @@
 import { Mail } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useLocation } from "react-router";
+import logoDark from "@/assets/logo-dark.svg";
+import logo from "@/assets/logo.svg";
 import { useAuth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,11 +68,10 @@ export function LoginPage() {
   return (
     <div className="grid min-h-svh place-items-center bg-background px-4 py-10">
       <main className="w-full max-w-sm">
-        <p className="flex items-center justify-center gap-1 font-heading text-lg font-bold tracking-tight">
-          stage
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-foreground" />
-          tracker
-        </p>
+        <div className="flex justify-center">
+          <img src={logo} alt="Stage Tracker" width={177} height={32} className="h-8 w-auto dark:hidden" />
+          <img src={logoDark} alt="Stage Tracker" width={177} height={32} className="hidden h-8 w-auto dark:block" />
+        </div>
         <div className="mt-6 rounded-3xl bg-card p-6 ring-1 ring-border sm:p-8">
           <h1 className="font-heading text-2xl font-bold tracking-tight">Connexion</h1>
           <p className="mt-2 text-sm text-muted-foreground">

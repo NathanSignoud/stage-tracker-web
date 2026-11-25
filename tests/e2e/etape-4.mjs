@@ -39,10 +39,17 @@ const addVersion = async (label, name, mimeType, buffer) => {
   await page.getByText(label).first().waitFor();
 };
 
+// Le serveur transmet la page brute ; le site la lit lui-même.
+const offerPage = `<html><head><script type="application/ld+json">${JSON.stringify({
+  "@type": "JobPosting",
+  title: "Stage Machine Learning",
+  hiringOrganization: { name: "Photoroom" },
+  jobLocation: { address: { addressLocality: "Paris" } },
+  validThrough: "2026-12-15",
+  description: "Python, PyTorch",
+})}</script></head><body></body></html>`;
 await page.route("**/api/offer", (route) =>
-  route.fulfill({
-    json: { title: "Stage Machine Learning", company: "Photoroom", location: "Paris", remote: null, offerText: "Python, PyTorch", deadline: "2026-12-15", method: "json-ld", url: "https://jobs.photoroom.com/1" },
-  }),
+  route.fulfill({ body: offerPage, headers: { "content-type": "text/plain; charset=utf-8", "x-offer-url": "https://jobs.photoroom.com/1" } }),
 );
 await page.goto(`${base}#/documents`);
 await page.getByRole("heading", { name: "Documents" }).waitFor({ timeout: 20000 });

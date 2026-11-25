@@ -13,7 +13,7 @@ import { AuthContext } from "@/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UiProvider } from "@/components/ui-state";
-import { setBackend } from "@/lib/db";
+import { clearReadCache, setBackend } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 import { setFileStore } from "@/lib/storage";
 import { pgliteBackend, SUPABASE_STUB } from "../pglite-backend";
@@ -27,7 +27,21 @@ for (const file of Object.keys(migrations).sort()) await db.exec(migrations[file
 await db.query("insert into auth.users (id, email) values ($1, 'essai@stage-tracker.invalid')", [USER]);
 await db.exec("set role authenticated");
 await db.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: USER })]);
-setBackend(pgliteBackend(db));
+// Compteur des lectures (nombre de requêtes et volume JSON), pour mesurer ce que chaque page coûterait chez Supabase.
+const stats = { selects: 0, bytes: 0, byTable: {} as Record<string, number>, kbByTable: {} as Record<string, number> };
+const backend = pgliteBackend(db);
+setBackend({
+  ...backend,
+  async select(table, where, columns) {
+    const rows = await backend.select(table, where, columns);
+    stats.selects++;
+    const size = JSON.stringify(rows).length;
+    stats.bytes += size;
+    stats.byTable[table] = (stats.byTable[table] ?? 0) + 1;
+    stats.kbByTable[table] = Math.round(((stats.kbByTable[table] ?? 0) * 1024 + size) / 1024);
+    return rows;
+  },
+});
 // Fichiers des documents gardés en mémoire (à la place de Supabase Storage).
 const stored = new Map<string, Blob>();
 setFileStore({
@@ -40,7 +54,15 @@ setFileStore({
   remove: async (paths) => paths.forEach((p) => stored.delete(p)),
 });
 await ensureSeed();
-Object.assign(window, { db, stored }); // pour inspecter la base et les fichiers depuis les tests
+// Pour les tests : la base (chaque écriture directe vide le cache de lectures, comme le ferait le site), les fichiers, le compteur.
+const testDb = {
+  query: async (...args: Parameters<typeof db.query>) => {
+    const result = await db.query(...args);
+    clearReadCache();
+    return result;
+  },
+};
+Object.assign(window, { db: testDb, stored, stats });
 
 const session = { user: { id: USER, email: "essai@stage-tracker.invalid" } } as Session;
 const start = window.location.hash.slice(1) || "/";

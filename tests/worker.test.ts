@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../worker/index";
 import type { Env } from "../worker/http";
-import { importOfferFromUrl } from "../worker/offer";
+import { importOfferAction } from "@/actions/features";
+import { fetchOfferPage } from "../worker/offer";
 
 // Serveur du site (worker/) : import d'offre (tests repris de la version locale) et abonnement agenda.
 
@@ -25,42 +26,42 @@ function stubFetch(routes: Record<string, (init?: RequestInit) => Response>) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("import d'offre par lien", () => {
-  it("lit une page d'offre et suit une redirection publique", async () => {
+describe("import d'offre par lien (récupération par le serveur)", () => {
+  it("suit une redirection publique et renvoie la page telle quelle", async () => {
     stubFetch({
       "https://jobs.example.com/o/1": () => new Response(null, { status: 302, headers: { location: "/offres/stage-ml" } }),
       "https://jobs.example.com/offres/stage-ml": () => new Response(html, { headers: { "content-type": "text/html" } }),
     });
-    const offer = await importOfferFromUrl("https://jobs.example.com/o/1");
-    expect(offer.title).toBe("Stage ML Engineer");
-    expect(offer.url).toBe("https://jobs.example.com/offres/stage-ml");
+    const { res, finalUrl } = await fetchOfferPage("https://jobs.example.com/o/1");
+    expect(finalUrl).toBe("https://jobs.example.com/offres/stage-ml");
+    expect(await res.text()).toBe(html);
   });
 
   it("refuse une redirection vers une adresse interne sans la contacter", async () => {
     const calls = stubFetch({
       "https://jobs.example.com/o/2": () => new Response(null, { status: 301, headers: { location: "http://169.254.169.254/latest/meta-data" } }),
     });
-    await expect(importOfferFromUrl("https://jobs.example.com/o/2")).rejects.toThrow("Adresse locale refusée");
+    await expect(fetchOfferPage("https://jobs.example.com/o/2")).rejects.toThrow("Adresse locale refusée");
     expect(calls.some((u) => u.includes("169.254"))).toBe(false);
   });
 
   it("refuse LinkedIn sans aucune requête", async () => {
     const calls = stubFetch({});
-    await expect(importOfferFromUrl("https://www.linkedin.com/jobs/view/1")).rejects.toThrow(/LinkedIn/);
+    await expect(fetchOfferPage("https://www.linkedin.com/jobs/view/1")).rejects.toThrow(/LinkedIn/);
     expect(calls).toEqual([]);
   });
 
   it("respecte robots.txt", async () => {
     const calls = stubFetch({ "https://jobs.example.com/robots.txt": () => new Response("User-agent: *\nDisallow: /offres/") });
-    await expect(importOfferFromUrl("https://jobs.example.com/offres/1")).rejects.toThrow(/interdit la lecture automatique/);
+    await expect(fetchOfferPage("https://jobs.example.com/offres/1")).rejects.toThrow(/interdit la lecture automatique/);
     expect(calls).toEqual(["https://jobs.example.com/robots.txt"]);
   });
 
-  it("refuse une page trop volumineuse", async () => {
+  it("refuse une page annoncée trop volumineuse", async () => {
     stubFetch({
-      "https://jobs.example.com/gros": () => new Response("x".repeat(3_100_000), { headers: { "content-type": "text/html" } }),
+      "https://jobs.example.com/gros": () => new Response("x", { headers: { "content-type": "text/html", "content-length": "3100000" } }),
     });
-    await expect(importOfferFromUrl("https://jobs.example.com/gros")).rejects.toThrow(/volumineuse/);
+    await expect(fetchOfferPage("https://jobs.example.com/gros")).rejects.toThrow(/volumineuse/);
   });
 });
 
@@ -75,14 +76,33 @@ describe("serveur : /api/offer", () => {
     expect(calls.some((u) => u.includes("jobs.example.com"))).toBe(false);
   });
 
-  it("renvoie l'offre lue à une personne connectée", async () => {
+  it("transmet la page à une personne connectée, en texte brut (jamais affichée comme une page du site)", async () => {
     stubFetch({
       [`${SUPABASE}/auth/v1/user`]: () => Response.json({ id: "u1" }),
-      "https://jobs.example.com/o/3": () => new Response(html, { headers: { "content-type": "text/html" } }),
+      "https://jobs.example.com/o/3": () => new Response(html, { headers: { "content-type": "text/html; charset=ISO-8859-1" } }),
     });
     const res = await post({ Authorization: "Bearer vrai" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ title: "Stage ML Engineer", company: "Acme" });
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=ISO-8859-1");
+    expect(res.headers.get("x-offer-url")).toBe("https://jobs.example.com/o/3");
+    expect(await res.text()).toBe(html);
+  });
+
+  it("coupe une page trop volumineuse même sans taille annoncée", async () => {
+    stubFetch({
+      [`${SUPABASE}/auth/v1/user`]: () => Response.json({ id: "u1" }),
+      "https://jobs.example.com/o/3": () => new Response("x".repeat(3_100_000), { headers: { "content-type": "text/html" } }),
+    });
+    const res = await post({ Authorization: "Bearer vrai" });
+    await expect(res.text()).rejects.toThrow(/volumineuse/);
+  });
+
+  it("le site lit la page reçue et pré-remplit l'offre", async () => {
+    stubFetch({
+      "/api/offer": () => new Response(html, { headers: { "content-type": "text/plain; charset=utf-8", "x-offer-url": "https://jobs.example.com/final" } }),
+    });
+    const res = await importOfferAction("https://jobs.example.com/o/4");
+    expect(res).toMatchObject({ ok: true, data: { title: "Stage ML Engineer", company: "Acme", url: "https://jobs.example.com/final" } });
   });
 
   it("les autres adresses servent le site statique", async () => {
@@ -134,5 +154,21 @@ describe("serveur : abonnement agenda", () => {
     const calls = stubFetch({});
     expect((await worker.fetch(new Request("https://site.test/api/calendar/court.ics"), env)).status).toBe(404);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("serveur : maintien en activité de Supabase", () => {
+  it("la tâche quotidienne interroge la base (jeton inexistant : aucune donnée)", async () => {
+    let sent: unknown;
+    stubFetch({
+      [`${SUPABASE}/rest/v1/rpc/calendar_feed`]: (init) => {
+        sent = JSON.parse(String(init?.body));
+        return Response.json(null);
+      },
+    });
+    const pending: Promise<unknown>[] = [];
+    await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+    expect(await Promise.all(pending)).toEqual([200]);
+    expect(sent).toEqual({ feed_token: "maintien-en-activite-quotidien" });
   });
 });

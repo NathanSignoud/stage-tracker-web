@@ -5,6 +5,7 @@ import { checkFile, mimeFor } from "@/lib/text-extraction";
 import type { Application, Document } from "@/lib/types";
 import type { DocumentInput } from "@/lib/validation";
 import { NotFoundError } from "./applications";
+import { allApplications, liveDocuments } from "./tables";
 
 type DocumentLink = { applicationId: number; documentId: number; sentAt: string | null };
 
@@ -81,9 +82,9 @@ export async function unlinkDocument(applicationId: number, documentId: number):
 /** Toutes les versions, avec les candidatures auxquelles chacune a été envoyée. */
 export async function listDocuments() {
   const [documents, links, apps] = await Promise.all([
-    rows<Document>("documents", { deletedAt: null }),
+    liveDocuments(),
     rows<DocumentLink>("application_documents"),
-    rows<Application>("applications", { deletedAt: null }),
+    allApplications().then((all) => all.filter((a) => !a.deletedAt)),
   ]);
   const appById = new Map(apps.map((a) => [a.id, a]));
   const sentTo = new Map<number, { id: number; company: string; sentAt: string | null }[]>();
@@ -98,7 +99,7 @@ export type DocumentListItem = Awaited<ReturnType<typeof listDocuments>>[number]
 
 /** Version « de base » (CV ou lettre) : référence pour les prompts et le diff des lettres. */
 export async function getBaseDocument(kind: DocumentKind): Promise<Document | null> {
-  return (await rows<Document>("documents", { kind, isBase: true, deletedAt: null })).sort((a, b) => cmp(b.createdAt, a.createdAt))[0] ?? null;
+  return (await liveDocuments()).filter((d) => d.kind === kind && d.isBase).sort((a, b) => cmp(b.createdAt, a.createdAt))[0] ?? null;
 }
 
 /** Une seule version de base par type. */
