@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/components/use-action";
 import { INTERVIEW_KIND_LABELS, INTERVIEW_KIND_SHORT, INTERVIEW_KINDS, type InterviewKind } from "@/lib/domain/constants";
+import { downloadText } from "@/lib/download";
 import { buildCalendar } from "@/lib/ics";
 import { normalizeText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -39,14 +40,7 @@ export async function downloadIcs(interactionId: number) {
   const event = await getInteractionIcsEvent(interactionId, window.location.origin);
   if (!event) return toast.error("Entretien introuvable");
   const slug = normalizeText(event.title).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const url = URL.createObjectURL(new Blob([buildCalendar([event], { name: "Stage Tracker" })], { type: "text/calendar;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug || "entretien"}-${event.start.slice(0, 10)}.ics`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadText(`${slug || "entretien"}-${event.start.slice(0, 10)}.ics`, buildCalendar([event], { name: "Stage Tracker" }), "text/calendar;charset=utf-8");
 }
 
 /**

@@ -1,9 +1,11 @@
-import { ArrowLeft, ExternalLink, MessageSquarePlus, Pencil } from "lucide-react";
+import { ArrowLeft, ExternalLink, FilePlus, MessageSquarePlus, Pencil } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { EditApplicationButton } from "@/components/applications/application-form";
 import { ContactsPanelActions, LinkedContactsList } from "@/components/applications/contacts-panel";
 import { StatusSelect } from "@/components/applications/status-select";
 import { CompanyMark } from "@/components/company-mark";
+import { DocumentDialog } from "@/components/documents/document-dialog";
+import { LinkedDocumentsList } from "@/components/documents/document-links";
 import { InteractionDialog } from "@/components/interactions/interaction-dialog";
 import { Timeline } from "@/components/interactions/timeline";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
@@ -23,19 +25,22 @@ import { NotFound } from "@/pages/coming-soon";
 import { getApplicationDetail, listTagNames } from "@/services/applications";
 import { interviewsToSchedule } from "@/services/calendar";
 import { listContacts } from "@/services/contacts";
+import { listDocuments } from "@/services/documents";
 import { analyzeOffer } from "@/services/keywords";
 
 async function loadApplication(id: number) {
   if (!Number.isInteger(id) || id <= 0) return null;
   const detail = await getApplicationDetail(id);
   if (!detail) return null;
-  const [allContacts, pending, match, tagSuggestions] = await Promise.all([
+  const [allContacts, pending, match, tagSuggestions, documents] = await Promise.all([
     listContacts(),
     interviewsToSchedule(),
     analyzeOffer(detail.application.offerText),
     listTagNames(),
+    listDocuments(),
   ]);
-  return { detail, allContacts, pendingKind: pending.find((a) => a.id === id)?.kind ?? null, match, tagSuggestions };
+  const documentOptions = documents.map((d) => ({ id: d.id, label: d.label, kind: d.kind }));
+  return { detail, allContacts, pendingKind: pending.find((a) => a.id === id)?.kind ?? null, match, tagSuggestions, documentOptions };
 }
 
 export function ApplicationPage() {
@@ -44,7 +49,7 @@ export function ApplicationPage() {
   if (data === undefined) return <PageLoading error={error} />;
   if (data === null) return <NotFound />;
 
-  const { detail, allContacts, pendingKind, match, tagSuggestions } = data;
+  const { detail, allContacts, pendingKind, match, tagSuggestions, documentOptions } = data;
   const { application: app } = detail;
   const today = localDate();
   const contactOptions = [
@@ -195,6 +200,24 @@ export function ApplicationPage() {
             }
           >
             <LinkedContactsList applicationId={app.id} contacts={detail.contacts} />
+          </Panel>
+
+          <Panel
+            title="Documents envoyés"
+            count={detail.documents.length}
+            actions={
+              <DocumentDialog
+                applicationId={app.id}
+                existing={documentOptions}
+                trigger={
+                  <Button variant="ghost" size="icon-xs" aria-label="Ajouter un document" title="Ajouter un document">
+                    <FilePlus />
+                  </Button>
+                }
+              />
+            }
+          >
+            <LinkedDocumentsList applicationId={app.id} documents={detail.documents} />
           </Panel>
         </div>
       </div>

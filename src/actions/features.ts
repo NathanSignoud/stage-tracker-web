@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ImportedOffer } from "@/lib/domain/offer-parsing";
 import { applyImportedOffer, getLiveApplication, setOfferText } from "@/services/applications";
+import { setBaseDocument } from "@/services/documents";
 import { createKeyword, deleteKeyword, updateKeyword } from "@/services/keywords";
 import { mutate, type ActionResult } from "./result";
 
@@ -48,4 +49,10 @@ export async function importOfferIntoApplicationAction(applicationId: number) {
     await applyImportedOffer(app, imported.data);
     return imported.data.method;
   });
+}
+
+// --- Documents de base -----------------------------------------------------------------------
+
+export async function setBaseDocumentAction(documentId: number) {
+  return mutate(() => setBaseDocument(id.parse(documentId)));
 }

@@ -74,10 +74,15 @@ async function tagOps(applicationId: number | ReturnType<typeof ref>, names: str
   return ops;
 }
 
-export async function createApplication(
+/**
+ * Écritures qui créent une candidature (avec son historique, ses relances et ses tags).
+ * `base` : position de la première de ces écritures dans le plan (l'insertion de la candidature).
+ */
+export async function createApplicationOps(
   input: (ApplicationInput | QuickAddInput) & { status?: Status },
-  now = new Date(),
-): Promise<number> {
+  now: Date,
+  base = 0,
+): Promise<PlanOp[]> {
   const { tags: tagNames, status = "to_explore", ...fields } = input as ApplicationInput & { status?: Status };
   const nowIso = now.toISOString();
   const [settings, matchScore] = await Promise.all([getSettings(), scoreOffer(fields.offerText)]);
@@ -91,13 +96,18 @@ export async function createApplication(
     followUpDelayDays: settings.followUpDelayDays,
     secondFollowUpDelayDays: settings.secondFollowUpDelayDays,
   });
+  const appId = ref(base);
   const ops: PlanOp[] = [
     insert("applications", { ...fields, status, matchScore, createdAt: nowIso, updatedAt: nowIso, ...(plan.sentDate ? { sentDate: plan.sentDate } : {}) }),
-    insert("status_changes", { applicationId: ref(0), fromStatus: null, toStatus: status, changedAt: nowIso }),
-    ...plan.createTasks.map((t) => insert("tasks", { ...t, applicationId: ref(0), origin: "auto_followup", createdAt: nowIso })),
+    insert("status_changes", { applicationId: appId, fromStatus: null, toStatus: status, changedAt: nowIso }),
+    ...plan.createTasks.map((t) => insert("tasks", { ...t, applicationId: appId, origin: "auto_followup", createdAt: nowIso })),
   ];
-  if (tagNames) ops.push(...(await tagOps(ref(0), tagNames, ops.length)));
-  return (await applyPlan(ops))[0]!;
+  if (tagNames) ops.push(...(await tagOps(appId, tagNames, base + ops.length)));
+  return ops;
+}
+
+export async function createApplication(input: (ApplicationInput | QuickAddInput) & { status?: Status }, now = new Date()): Promise<number> {
+  return (await applyPlan(await createApplicationOps(input, now)))[0]!;
 }
 
 export async function updateApplication(id: number, input: ApplicationInput, now = new Date()): Promise<void> {
