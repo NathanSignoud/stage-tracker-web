@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { TRASH_KINDS } from "@/lib/domain/constants";
+import { extractDocumentText } from "@/lib/text-extraction";
 import { contactInputSchema, documentInputSchema, interactionInputSchema, settingsInputSchema, taskInputSchema } from "@/lib/validation";
 import { createContact, updateContact } from "@/services/contacts";
-import { createAndLinkDocument, createDocument, linkDocument, unlinkDocument } from "@/services/documents";
+import { linkDocument, saveDocument, unlinkDocument } from "@/services/documents";
+import { regenerateCalendarToken } from "@/services/calendar";
 import { createInteraction, updateInteraction } from "@/services/interactions";
 import { updateSettings } from "@/services/settings";
 import { createTask, postponeTask, setTaskDone } from "@/services/tasks";
@@ -53,9 +55,8 @@ export async function updateContactAction(contactId: number, input: unknown) {
 /** FormData : kind, label, content?, file?, applicationId?, sentAt?, documentId? (lier un existant). */
 export async function saveDocumentAction(form: FormData) {
   return mutate(async () => {
-    const file = form.get("file");
-    // shortcut: pas encore de stockage de fichiers (Supabase Storage, étape 4) : on demande le texte.
-    if (file instanceof File && file.size > 0) throw new Error("L'envoi de fichiers arrive bientôt. En attendant, colle le texte du document.");
+    const raw = form.get("file");
+    const file = raw instanceof File && raw.size > 0 ? raw : null;
     const applicationId = id.nullish().parse(form.get("applicationId") || null);
     const existing = id.nullish().parse(form.get("documentId") || null);
     const sentAt = day.parse(form.get("sentAt"));
@@ -63,9 +64,12 @@ export async function saveDocumentAction(form: FormData) {
       if (applicationId) await linkDocument(applicationId, existing, sentAt);
       return existing;
     }
-    const input = documentInputSchema.parse({ kind: form.get("kind"), label: form.get("label"), content: String(form.get("content") ?? "").trim() });
-    if (!input.content) throw new Error("Colle le texte du document");
-    return applicationId ? createAndLinkDocument(input, applicationId, sentAt) : createDocument(input);
+    // Pas de texte collé : on l'extrait du fichier (DOCX, PDF, Markdown) pour le diff et les prompts.
+    const pasted = String(form.get("content") ?? "").trim();
+    const extracted = file && !pasted ? await extractDocumentText(file.name, new Uint8Array(await file.arrayBuffer())) : null;
+    const input = documentInputSchema.parse({ kind: form.get("kind"), label: form.get("label"), content: pasted || extracted });
+    if (!file && !input.content) throw new Error("Ajoute un fichier ou colle le texte du document");
+    return saveDocument(input, file, applicationId ? { applicationId, sentAt } : null);
   });
 }
 
@@ -91,6 +95,12 @@ export async function purgeFromTrashAction(k: string, itemId: number) {
 
 export async function updateSettingsAction(input: unknown) {
   return mutate(() => updateSettings(settingsInputSchema.parse(input)));
+}
+
+// --- Agenda ------------------------------------------------------------------
+
+export async function regenerateCalendarTokenAction() {
+  return mutate(() => regenerateCalendarToken());
 }
 
 // --- Recherche (lecture seule) ----------------------------------------------

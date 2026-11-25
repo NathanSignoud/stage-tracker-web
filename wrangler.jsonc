@@ -2,9 +2,18 @@
   // Site statique : Vite construit dist/, Cloudflare sert ces fichiers (adresse : <name>.<ton-sous-domaine>.workers.dev).
   "name": "stage-tracker-web",
   "compatibility_date": "2026-11-01",
+  // Serveur pour les seules adresses /api/* (import d'une offre par lien, abonnement agenda).
+  "main": "worker/index.ts",
   "assets": {
     "directory": "./dist",
-    // Toute adresse inconnue renvoie index.html : le routeur React gère /calendrier, /candidatures/12…
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    // Toute autre adresse inconnue renvoie index.html : le routeur React gère /calendrier, /candidatures/12…
     "not_found_handling": "single-page-application"
+  },
+  // Valeurs publiques (les mêmes que dans .env) : la clé publique ne donne accès qu'à ce que les règles RLS autorisent.
+  "vars": {
+    "SUPABASE_URL": "https://ahyqkicjetcxcapcblir.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_BUm_s9aLtNogXiqRfVNYfg_QJd6tSzz"
   }
 }

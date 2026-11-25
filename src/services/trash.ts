@@ -1,5 +1,6 @@
 import { applyPlan, cmp, remove, row, rows, update, type PlanOp, type Table } from "@/lib/db";
 import { INTERACTION_LABELS, type TrashKind } from "@/lib/domain/constants";
+import { files } from "@/lib/storage";
 import type { Application, Company, Contact, Document, Interaction, PrepQuestion, Task } from "@/lib/types";
 import { NotFoundError } from "./applications";
 
@@ -15,8 +16,8 @@ const tables: Record<TrashKind, Table> = {
   company: "companies",
 };
 
-async function trashed(kind: TrashKind, id: number): Promise<{ deletedAt: string | null }> {
-  const item = await row<{ deletedAt: string | null }>(tables[kind], { id });
+async function trashed(kind: TrashKind, id: number): Promise<{ deletedAt: string | null; filePath?: string | null }> {
+  const item = await row<{ deletedAt: string | null; filePath?: string | null }>(tables[kind], { id });
   if (!item) throw new NotFoundError();
   return item;
 }
@@ -43,7 +44,7 @@ export async function restoreFromTrash(kind: TrashKind, id: number): Promise<voi
 
 /** Suppression définitive, uniquement pour un élément déjà dans la corbeille. */
 export async function purgeFromTrash(kind: TrashKind, id: number): Promise<void> {
-  const { deletedAt } = await trashed(kind, id);
+  const { deletedAt, filePath } = await trashed(kind, id);
   if (!deletedAt) throw new Error("Seuls les éléments de la corbeille peuvent être supprimés définitivement");
   const ops: PlanOp[] = [];
   if (kind === "interaction") {
@@ -51,8 +52,10 @@ export async function purgeFromTrash(kind: TrashKind, id: number): Promise<void>
     if (linked.length) ops.push(remove("tasks", { id: linked }));
   }
   ops.push(remove(tables[kind], { id }));
-  // shortcut: le fichier d'un document (Storage) n'est pas encore supprimé ; à brancher avec les fichiers (étape 4).
   await applyPlan(ops);
+  // Le fichier après la ligne : la base ne pointe jamais vers un fichier absent.
+  // shortcut: si cette suppression échoue (réseau), le fichier reste orphelin dans le stockage ; à nettoyer à l'étape 6 si besoin.
+  if (kind === "document" && filePath) await files.remove([filePath]).catch(() => {});
 }
 
 export type TrashItem = { kind: TrashKind; id: number; label: string; detail: string; deletedAt: string };

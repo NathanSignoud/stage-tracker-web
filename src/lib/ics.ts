@@ -27,6 +27,29 @@ function utcStamp(d: Date): string {
   );
 }
 
+/** Décalage (ms) du fuseau `timeZone` par rapport à UTC à l'instant `ts`. */
+function offsetMs(ts: number, timeZone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      .formatToParts(new Date(ts))
+      .map((p) => [p.type, p.value]),
+  );
+  return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second) - ts;
+}
+
+/**
+ * `YYYY-MM-DDTHH:mm` (heure affichée à l'utilisateur) → instant. Sans `timeZone` : fuseau de l'appareil
+ * (navigateur) ; avec : ce fuseau (serveur, qui tourne en UTC).
+ */
+export function wallTimeToDate(local: string, timeZone?: string): Date {
+  if (!timeZone) return new Date(local);
+  const [y, m, d, h, min] = local.split(/[-T:]/).map(Number);
+  const asUtc = Date.UTC(y, m - 1, d, h, min);
+  let ts = asUtc;
+  for (let i = 0; i < 2; i++) ts = asUtc - offsetMs(ts, timeZone); // 2 passes : changements d'heure
+  return new Date(ts);
+}
+
 function dateValue(day: string): string {
   return day.slice(0, 10).replaceAll("-", "");
 }
@@ -67,14 +90,13 @@ export function foldLine(line: string): string {
   return parts.join("\r\n ");
 }
 
-function eventLines(event: IcsEvent, now: Date): string[] {
+function eventLines(event: IcsEvent, now: Date, timeZone?: string): string[] {
   const lines = ["BEGIN:VEVENT", `UID:${event.uid}`, `DTSTAMP:${utcStamp(now)}`];
   if (event.allDay) {
     const day = event.start.slice(0, 10);
     lines.push(`DTSTART;VALUE=DATE:${dateValue(day)}`, `DTEND;VALUE=DATE:${dateValue(nextDay(day))}`, "TRANSP:TRANSPARENT");
   } else {
-    // `YYYY-MM-DDTHH:mm` sans fuseau est interprété en heure locale par Date.
-    const start = new Date(event.start);
+    const start = wallTimeToDate(event.start, timeZone);
     const end = new Date(start.getTime() + (event.durationMinutes ?? 60) * 60_000);
     lines.push(`DTSTART:${utcStamp(start)}`, `DTEND:${utcStamp(end)}`, "TRANSP:OPAQUE");
   }
@@ -98,7 +120,7 @@ function eventLines(event: IcsEvent, now: Date): string[] {
 
 export function buildCalendar(
   events: IcsEvent[],
-  options: { name: string; now?: Date; refreshMinutes?: number } = { name: "Stage Tracker" },
+  options: { name: string; now?: Date; refreshMinutes?: number; timeZone?: string } = { name: "Stage Tracker" },
 ): string {
   const now = options.now ?? new Date();
   const lines = [
@@ -115,7 +137,7 @@ export function buildCalendar(
       `X-PUBLISHED-TTL:PT${options.refreshMinutes}M`,
     );
   }
-  for (const event of events) lines.push(...eventLines(event, now));
+  for (const event of events) lines.push(...eventLines(event, now, options.timeZone));
   lines.push("END:VCALENDAR");
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }

@@ -6,6 +6,10 @@ import { formatDay } from "@/lib/dates";
 import { DOCUMENT_KIND_LABELS } from "@/lib/domain/constants";
 import type { Document } from "@/lib/types";
 import { unlinkDocumentAction } from "@/actions/records";
+import { errorMessage } from "@/actions/result";
+import { downloadBlob } from "@/lib/download";
+import { downloadDocumentFile } from "@/services/documents";
+import { toast } from "sonner";
 
 export function DocumentButtons({ doc }: { doc: Pick<Document, "id" | "label" | "content" | "filePath" | "fileName"> }) {
   return (
@@ -26,10 +30,18 @@ export function DocumentButtons({ doc }: { doc: Pick<Document, "id" | "label" | 
         </Dialog>
       )}
       {doc.filePath && (
-        <Button variant="ghost" size="icon-xs" asChild>
-          <a href={`/api/documents/${doc.id}`} aria-label={`Télécharger ${doc.fileName ?? ""}`} title={doc.fileName ?? "Télécharger"}>
-            <Download />
-          </a>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Télécharger ${doc.fileName ?? ""}`}
+          title={doc.fileName ?? "Télécharger"}
+          onClick={() =>
+            downloadDocumentFile(doc)
+              .then((blob) => downloadBlob(doc.fileName ?? "document", blob))
+              .catch((e: unknown) => toast.error(errorMessage(e)))
+          }
+        >
+          <Download />
         </Button>
       )}
     </>

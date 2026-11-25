@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarView } from "@/components/calendar/calendar-view";
+import { ConnectCalendarDialog } from "@/components/calendar/connect-calendar-dialog";
 import { PageHeader } from "@/components/page-header";
 import { PageLoading } from "@/components/page-loading";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export function CalendarPage() {
             <Button variant="ghost" size="sm" onClick={exportCalendar} title="Télécharger tous les entretiens et dates limites (.ics)">
               <Download /> .ics
             </Button>
+            <ConnectCalendarDialog />
           </>
         }
       />

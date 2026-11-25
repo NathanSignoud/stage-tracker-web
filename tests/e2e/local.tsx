@@ -15,6 +15,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { UiProvider } from "@/components/ui-state";
 import { setBackend } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
+import { setFileStore } from "@/lib/storage";
 import { pgliteBackend, SUPABASE_STUB } from "../pglite-backend";
 
 const migrations = import.meta.glob<string>("/supabase/migrations/*.sql", { query: "?raw", import: "default", eager: true });
@@ -27,8 +28,19 @@ await db.query("insert into auth.users (id, email) values ($1, 'essai@stage-trac
 await db.exec("set role authenticated");
 await db.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: USER })]);
 setBackend(pgliteBackend(db));
+// Fichiers des documents gardés en mémoire (à la place de Supabase Storage).
+const stored = new Map<string, Blob>();
+setFileStore({
+  upload: async (file, fileName) => {
+    const path = `${USER}/${crypto.randomUUID()}-${fileName}`;
+    stored.set(path, file);
+    return path;
+  },
+  download: async (path) => stored.get(path) ?? Promise.reject(new Error("Fichier introuvable")),
+  remove: async (paths) => paths.forEach((p) => stored.delete(p)),
+});
 await ensureSeed();
-Object.assign(window, { db }); // pour inspecter la base depuis les tests
+Object.assign(window, { db, stored }); // pour inspecter la base et les fichiers depuis les tests
 
 const session = { user: { id: USER, email: "essai@stage-tracker.invalid" } } as Session;
 const start = window.location.hash.slice(1) || "/";

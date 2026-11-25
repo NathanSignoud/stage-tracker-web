@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { INTERVIEW_STATUSES, PREP_QUESTION_KINDS, TEMPLATE_KINDS, type Status } from "@/lib/domain/constants";
 import type { ImportedOffer } from "@/lib/domain/offer-parsing";
+import { supabase } from "@/lib/supabase";
 import { getApplicationDetail, NotFoundError } from "@/services/applications";
 import { recordMessageSent } from "@/services/messages";
 import { addDefaultPrepQuestions, addPrepQuestion, reviewPrepQuestion, saveCompanyNotes, updatePrepQuestion } from "@/services/prep";
@@ -48,9 +49,19 @@ export async function setOfferTextAction(applicationId: number, text: string) {
 
 /** Lit une offre depuis son lien (pour pré-remplir un formulaire, rien n'est enregistré). */
 export async function importOfferAction(url: string): Promise<ActionResult<ImportedOffer & { url: string }>> {
-  // shortcut: la lecture d'une page demande un serveur (Edge Function, étape 4) ; d'ici là, message clair.
-  void url;
-  return { ok: false, error: "L'import depuis le lien arrive bientôt. En attendant, colle le texte de l'offre." };
+  try {
+    const { data } = await supabase.auth.getSession();
+    const res = await fetch("/api/offer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+      body: JSON.stringify({ url: z.string().max(2000).parse(url) }),
+    });
+    const body = (await res.json().catch(() => null)) as (ImportedOffer & { url: string }) | { error?: string } | null;
+    if (!res.ok || !body || "error" in body) return { ok: false, error: (body && "error" in body && body.error) || "Lecture impossible : copie-colle le texte de l'offre." };
+    return { ok: true, data: body as ImportedOffer & { url: string } };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) };
+  }
 }
 
 /** Importe le texte de l'offre depuis le lien enregistré sur la candidature (et complète lieu / date limite). */

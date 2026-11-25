@@ -1,23 +1,14 @@
-import { cmp, row, rows } from "@/lib/db";
-import { addDays, localDate } from "@/lib/dates";
-import {
-  DEFAULT_INTERVIEW_MINUTES,
-  INTERACTION_LABELS,
-  INTERVIEW_KIND_LABELS,
-  STATUS_INTERVIEW_KINDS,
-  type InteractionType,
-  type InterviewKind,
-  type Status,
-} from "@/lib/domain/constants";
-import { sequenceFrom, type IcsEvent } from "@/lib/ics";
+import { cmp, row, rows, upsert } from "@/lib/db";
+import { localDate } from "@/lib/dates";
+import { icsEventsFrom, interviewLabel, MEETING_TYPES, meetingToIcs } from "@/lib/calendar-feed";
+import { STATUS_INTERVIEW_KINDS, type InterviewKind, type Status } from "@/lib/domain/constants";
+import type { IcsEvent } from "@/lib/ics";
 import type { Application, Contact, Interaction, Task } from "@/lib/types";
 import { OPEN_TASK } from "./applications";
+import { getRawSetting } from "./settings";
 
 export const CALENDAR_EVENT_KINDS = ["interview", "deadline", "task"] as const;
 export type CalendarEventKind = (typeof CALENDAR_EVENT_KINDS)[number];
-
-/** Types d'échange qui sont des rendez-vous (affichés dans le calendrier). */
-const MEETING_TYPES: InteractionType[] = ["interview", "call", "meeting"];
 
 export type CalendarEvent = {
   key: string;
@@ -35,10 +26,7 @@ export type CalendarEvent = {
   contactName: string | null;
 };
 
-export function interviewLabel(type: InteractionType, kind: InterviewKind | null): string {
-  if (type === "interview") return INTERVIEW_KIND_LABELS[kind ?? "other"];
-  return INTERACTION_LABELS[type];
-}
+export { interviewLabel };
 
 /** Entretiens / appels, dates limites et tâches entre deux dates (incluses). */
 export async function listCalendarEvents(
@@ -122,59 +110,14 @@ export type InterviewToSchedule = Awaited<ReturnType<typeof interviewsToSchedule
 
 // --- Export iCalendar --------------------------------------------------------
 
-function meetingToIcs(i: Interaction, app: Application | undefined, contactName: string | null, baseUrl: string): IcsEvent {
-  const label = interviewLabel(i.type, i.interviewKind);
-  const ficheUrl = i.applicationId ? `${baseUrl}/candidatures/${i.applicationId}` : null;
-  const description = [
-    app?.title && `Poste : ${app.title}`,
-    contactName && `Contact : ${contactName}`,
-    i.summary !== label && i.summary,
-    i.content && i.content.slice(0, 1500),
-    ficheUrl && `Fiche : ${ficheUrl}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const isInterview = i.type === "interview";
-  return {
-    uid: `interaction-${i.id}@stage-tracker`,
-    start: i.date,
-    durationMinutes: i.durationMinutes ?? (isInterview ? DEFAULT_INTERVIEW_MINUTES : 30),
-    title: app ? `${label} · ${app.company}` : label,
-    description,
-    location: i.location,
-    url: ficheUrl,
-    sequence: sequenceFrom(i.updatedAt),
-    // Rappels : la veille (pour préparer) et 1 h avant pour un entretien ; 15 min avant pour un appel.
-    alarms: isInterview ? [24 * 60, 60] : [15],
-  };
-}
-
 /** Événements exportés : entretiens et appels (90 derniers jours → futur) + dates limites à venir. */
 export async function listIcsEvents(baseUrl: string, now = new Date()): Promise<IcsEvent[]> {
-  const today = localDate(now);
-  const [interactions, apps, contacts, deadlines] = await Promise.all([
+  const [interactions, applications, contacts] = await Promise.all([
     rows<Interaction>("interactions", { deletedAt: null, type: MEETING_TYPES }),
     rows<Application>("applications"),
     rows<Contact>("contacts"),
-    listCalendarEvents(today, addDays(today, 365), ["deadline"]),
   ]);
-  const appById = new Map(apps.map((a) => [a.id, a]));
-  const contactName = new Map(contacts.map((c) => [c.id, c.name]));
-  const meetings = interactions
-    .filter((i) => i.date >= `${addDays(today, -90)}T00:00` && !(i.applicationId && appById.get(i.applicationId)?.deletedAt))
-    .map((i) =>
-      meetingToIcs(i, i.applicationId ? appById.get(i.applicationId) : undefined, (i.contactId && contactName.get(i.contactId)) || null, baseUrl),
-    );
-  return [
-    ...meetings,
-    ...deadlines.map((e) => ({
-      uid: `deadline-${e.applicationId}@stage-tracker`,
-      start: e.date,
-      allDay: true,
-      title: `Date limite · ${e.company}`,
-      url: `${baseUrl}/candidatures/${e.applicationId}`,
-    })),
-  ];
+  return icsEventsFrom({ interactions, applications, contacts }, baseUrl, localDate(now));
 }
 
 /** Un seul entretien / appel, pour le bouton « Ajouter à mon agenda ». */
@@ -186,4 +129,25 @@ export async function getInteractionIcsEvent(interactionId: number, baseUrl: str
     i.contactId ? row<Contact>("contacts", { id: i.contactId }) : null,
   ]);
   return meetingToIcs(i, app ?? undefined, contact?.name ?? null, baseUrl);
+}
+
+// --- Jeton de l'abonnement ----------------------------------------------------
+
+/** 18 octets aléatoires en base64url (24 caractères) : l'adresse d'abonnement est impossible à deviner. */
+function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Jeton secret de l'adresse d'abonnement (créé au premier besoin). */
+export async function getCalendarToken(): Promise<string> {
+  return (await getRawSetting<string>("calendarToken")) ?? regenerateCalendarToken();
+}
+
+/** Nouveau jeton (l'ancienne adresse cesse de marcher) ; le fuseau sert au serveur à placer les heures. */
+export async function regenerateCalendarToken(): Promise<string> {
+  const token = newToken();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  await upsert("settings", [{ key: "calendarToken", value: token }, { key: "calendarTimeZone", value: timeZone }], ["userId", "key"]);
+  return token;
 }

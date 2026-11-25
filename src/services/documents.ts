@@ -1,16 +1,44 @@
 import { applyPlan, cmp, insert, ref, remove, row, rows, update, upsert } from "@/lib/db";
 import type { DocumentKind } from "@/lib/domain/constants";
+import { files } from "@/lib/storage";
+import { checkFile, mimeFor } from "@/lib/text-extraction";
 import type { Application, Document } from "@/lib/types";
 import type { DocumentInput } from "@/lib/validation";
 import { NotFoundError } from "./applications";
-
-// shortcut: documents en texte seulement ; les fichiers (CV en PDF…) arrivent avec Supabase Storage (étape 4).
 
 type DocumentLink = { applicationId: number; documentId: number; sentAt: string | null };
 
 /** Crée une version de document (texte). */
 export async function createDocument(input: DocumentInput & { isBase?: boolean }, now = new Date()): Promise<number> {
   return (await applyPlan([insert("documents", { ...input, createdAt: now.toISOString() })]))[0]!;
+}
+
+/**
+ * Nouvelle version de document, avec son fichier éventuel (rangé d'abord dans le dossier de la personne)
+ * et son lien à une candidature. Si l'enregistrement échoue, le fichier envoyé est retiré.
+ */
+export async function saveDocument(
+  input: DocumentInput,
+  file: File | null,
+  link: { applicationId: number; sentAt: string | null } | null,
+  now = new Date(),
+): Promise<number> {
+  if (file) checkFile(file);
+  const filePath = file ? await files.upload(file, file.name, mimeFor(file.name)) : null;
+  try {
+    const ops = [insert("documents", { ...input, filePath, fileName: file?.name ?? null, mimeType: file ? mimeFor(file.name) : null, createdAt: now.toISOString() })];
+    if (link) ops.push(insert("application_documents", { applicationId: link.applicationId, documentId: ref(0), sentAt: link.sentAt }));
+    return (await applyPlan(ops))[0]!;
+  } catch (error) {
+    if (filePath) await files.remove([filePath]).catch(() => {});
+    throw error;
+  }
+}
+
+/** Télécharge le fichier d'une version. */
+export async function downloadDocumentFile(doc: Pick<Document, "filePath">): Promise<Blob> {
+  if (!doc.filePath) throw new NotFoundError("Fichier introuvable");
+  return files.download(doc.filePath);
 }
 
 export function linkDocument(applicationId: number, documentId: number, sentAt: string | null): Promise<void> {

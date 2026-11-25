@@ -31,3 +31,22 @@ it("le plan écrit en camelCase par le site est compris par apply_plan", async (
   expect(fromRow(app)).toMatchObject({ company: "Mistral AI", sentDate: "2026-11-20", userId: user, createdAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/) });
   expect(fromRow(task)).toMatchObject({ applicationId: app.id, dueDate: "2026-11-30", origin: "auto_followup", doneAt: null });
 }, 30_000);
+
+it("fichiers : chacun n'écrit et ne lit que dans son propre dossier", async () => {
+  const db = await migratedDb();
+  const a = "00000000-0000-4000-8000-0000000000a1";
+  const b = "00000000-0000-4000-8000-0000000000b1";
+  await db.exec(`insert into auth.users (id) values ('${a}'), ('${b}')`);
+  const as = (user: string) => db.exec(`set role authenticated; select set_config('request.jwt.claims', '{"sub": "${user}"}', false);`);
+
+  await as(a);
+  await db.exec(`insert into storage.objects (bucket_id, name) values ('documents', '${a}/cv.pdf')`);
+  await expect(db.exec(`insert into storage.objects (bucket_id, name) values ('documents', '${b}/intrus.pdf')`)).rejects.toThrow(/row-level security/);
+  await expect(db.exec(`insert into storage.objects (bucket_id, name) values ('documents', 'cv-sans-dossier.pdf')`)).rejects.toThrow(/row-level security/);
+
+  await as(b);
+  expect((await db.query("select count(*)::int as n from storage.objects")).rows[0]).toEqual({ n: 0 });
+  await db.exec(`delete from storage.objects where name = '${a}/cv.pdf'`);
+  await as(a);
+  expect((await db.query("select name from storage.objects")).rows).toEqual([{ name: `${a}/cv.pdf` }]);
+}, 30_000);

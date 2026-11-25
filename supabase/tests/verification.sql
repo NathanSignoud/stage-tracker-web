@@ -143,6 +143,14 @@ begin
 end;
 $$;
 
+-- Agenda (étape 4) : A et B ont chacun un jeton d'abonnement ; l'adresse de A ne donne que les rendez-vous de A.
+insert into public.settings (key, value) values ('calendarToken', '"jeton-de-a-0123456789abcd"'), ('calendarTimeZone', '"Europe/Paris"');
+insert into public.interactions (application_id, date, type, summary)
+  values ((current_setting('verif.ids')::jsonb ->> 0)::bigint, '2099-01-10T10:00', 'interview', 'Entretien RH');
+select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000b", "role": "authenticated"}', true);
+insert into public.applications (company) values ('Secret de B');
+insert into public.settings (key, value) values ('calendarToken', '"jeton-de-b-0123456789abcd"');
+
 -- Un visiteur non connecté ne lit rien et ne peut pas utiliser apply_plan.
 set local role anon;
 select set_config('request.jwt.claims', '', true);
@@ -151,7 +159,21 @@ do $$
 declare
   n bigint := 0;
   refused boolean := false;
+  feed jsonb;
 begin
+  -- L'abonnement agenda, lui, est lisible sans connexion, mais seulement avec le bon jeton.
+  feed := public.calendar_feed('jeton-de-a-0123456789abcd');
+  if feed is null
+     or not (feed -> 'applications') @> '[{"company": "Verif SA"}]'
+     or (feed -> 'applications') @> '[{"company": "Secret de B"}]'
+     or jsonb_array_length(feed -> 'interactions') <> 1
+     or feed ->> 'timeZone' is distinct from 'Europe/Paris' then
+    raise exception 'ÉCHEC : l''abonnement agenda de A ne renvoie pas exactement les rendez-vous de A';
+  end if;
+  if public.calendar_feed('jeton-inconnu-0123456789ab') is not null or public.calendar_feed('court') is not null then
+    raise exception 'ÉCHEC : un jeton d''agenda inconnu donne accès à des données';
+  end if;
+
   begin
     select count(*) into n from public.applications;
   exception when insufficient_privilege then null;
